@@ -18,9 +18,9 @@ url=https://github.com/o/r/issues/1#issuecomment-9
 # #4 someone else's with no assignees, #5 has no fixture so the read fails.
 item() { printf '%s\n' "$2" > "$tmp/items/o_r_$1.json"; }
 item 1 '{"user":{"login":"rossyanez"},"assignees":[]}'
-item 2 '{"user":{"login":"alice"},"assignees":[{"login":"bob"},{"login":"rossyanez"}],"pull_request":{"url":"x"}}'
-item 3 '{"user":{"login":"alice"},"assignees":[{"login":"bob"},{"login":"carol"}]}'
-item 4 '{"user":{"login":"alice"},"assignees":[]}'
+item 2 '{"user":{"login":"user-a"},"assignees":[{"login":"user-b"},{"login":"rossyanez"}],"pull_request":{"url":"x"}}'
+item 3 '{"user":{"login":"user-a"},"assignees":[{"login":"user-b"},{"login":"user-c"}]}'
+item 4 '{"user":{"login":"user-a"},"assignees":[]}'
 
 # gh stub: `api repos/<o>/<r>/issues/<n>` alone prints the fixture. `api -X ...`, `issue create` and
 # `pr create` append their args to $GH_STUB/calls, one per line, with a --body-file path replaced by
@@ -92,9 +92,9 @@ run check o/r 2
 wrote "Ross is an assignee only: check passes" ""
 run check o/r 3
 refused "someone else's item: check exits 1" 1 \
-	"gh-post: o/r#3 isn't Ross's (author alice, assignees bob, carol). Don't post; report it to Ross in your reply."
+	"gh-post: o/r#3 isn't Ross's (author user-a, assignees user-b, user-c). Don't post; report it to Ross in your reply."
 run check o/r 4
-refused "no assignees reads none" 1 "(author alice, assignees none)"
+refused "no assignees reads none" 1 "(author user-a, assignees none)"
 run check o/r 5
 refused "a failed read exits 2" 2
 

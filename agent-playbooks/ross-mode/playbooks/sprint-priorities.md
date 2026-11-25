@@ -2,7 +2,7 @@
 
 Starts with scouts: no.
 
-Added, with no pstack counterpart. Two mechanics come from Lauren Tan's noodle scheduler. Every pick cites the rule that placed it, and an item that keeps slipping gets split instead of pushed. One comes from Anthropic's Claude Code best practices. A correction I make twice becomes a written rule.
+Added, with no pstack counterpart. Two mechanics come from Lauren Tan's noodle scheduler. Every pick cites the rule that placed it, and an item that keeps slipping gets split instead of pushed. One comes from the Claude Code best practices. A correction I make twice becomes a written rule.
 
 Runs when I ask what to work on, which ticket comes first, or what's in my sprint.
 

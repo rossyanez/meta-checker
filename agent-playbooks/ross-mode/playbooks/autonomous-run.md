@@ -1,6 +1,6 @@
 ### Autonomous run
 
-Translated from pstack `playbooks/autonomous-run.md`. Cursor's `/loop` → Paseo heartbeats; `show-me-your-work` → `practices/decision-log.md`. Changed: the gates come from my permissions line, and mid-run discoveries are logged, not fixed. Red CI after the PR opens goes to Babysit, not back to the loop, so Opening a PR never runs twice. pstack's router (`skills/poteto-mode/SKILL.md`), not its `autonomous-run.md`, routes large runs to `figure-it-out` and lists the autopilot playbooks. Not ported: `figure-it-out` and the autopilot playbooks.
+Translated from pstack `playbooks/autonomous-run.md`. Cursor's `/loop` → Paseo heartbeats; `show-me-your-work` → `practices/decision-log.md`. Changed: the gates come from my permissions line, and mid-run discoveries are logged, not fixed. Red CI after the PR opens goes to Babysit, not back to the loop, so Opening a PR never runs twice. pstack's router skill, not its `autonomous-run.md`, routes large runs to `figure-it-out` and lists the autopilot playbooks. Not ported: `figure-it-out` and the autopilot playbooks.
 
 **You own the finish condition. Define done, then drive to it without stopping.** I'm away, so every decision goes in the log instead of to me. Your first `TaskCreate` declares the work's playbook (such as `feature`), not `autonomous-run`.
 

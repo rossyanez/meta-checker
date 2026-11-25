@@ -2,7 +2,7 @@
 
 Starts with scouts: no.
 
-Ported from pstack `playbooks/opening-a-pr.md`. Translated: `/deslop` → a Ross - Reviewer pass; `/technical-writing` → `practices/technical-writing.md`; `/unslop` → `practices/unslop.md`. Origin, built-in PR tools, and Graphite are dropped; `gh` only. Not ported: `/no-comments`. Added (Ross's rule): every PR has a ticket. Added: the base can come from my brief, and the PR body's issue line is `Closes`, `Refs` or none. Added: screenshots as proof for a change that shows on screen, uploaded to the `pr-assets` branch by `scripts/pr-screenshots.sh`.
+Ported from pstack `playbooks/opening-a-pr.md`. Translated: `/deslop` → a Ross - Reviewer pass; `/technical-writing` → `practices/technical-writing.md`; `/unslop` → `practices/unslop.md`. Origin, built-in PR tools, and stacked-PR tools are dropped; `gh` only. Not ported: `/no-comments`. Added (Ross's rule): every PR has a ticket. Added: the base can come from my brief, and the PR body's issue line is `Closes`, `Refs` or none. Added: screenshots as proof for a change that shows on screen, uploaded to the `pr-assets` branch by `scripts/pr-screenshots.sh`.
 
 Runs at the end of Bug fix, Feature, Refactoring, and the other playbooks that ship, or on its own for finished work.
 

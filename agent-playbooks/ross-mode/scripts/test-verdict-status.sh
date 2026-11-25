@@ -14,7 +14,7 @@ mkdir -p "$bin"
 
 head=abcdef0123456789abcdef0123456789abcdef01
 other=1234567890123456789012345678901234567890
-url=https://github.com/acme/web/pull/7#issuecomment-1
+url=https://github.com/o/r/pull/7#issuecomment-1
 
 # gh stub: only the exact head lookup for PR 7 prints the head from $tmp/head, and it fails when $tmp/view-fails
 # exists. api records its args, and fails when $tmp/api-fails exists.

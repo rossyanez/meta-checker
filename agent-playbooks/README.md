@@ -54,7 +54,7 @@ pstack targets Cursor. This copy runs on Claude Code, with Paseo agents in place
 - Workers, reviewers and scouts are Paseo agents launched from named profiles, and each writing agent gets its own Paseo worktree. Paseo heartbeats replace `/loop`.
 - Hooks enforce the todo list, the lead's no-write rule and the posting rule, where pstack states them as instructions.
 - Orchestrate also sets the verdict as the `ross-mode/verdict` commit status, so branch protection can require it.
-- GitHub work uses `gh` only. Graphite, `gt`, stacks, squash-merge, `--auto` and cloud VMs are dropped, and agents stop at merge-ready.
+- GitHub work uses `gh` only. Stacked-PR tools, squash-merge, `--auto` and cloud VMs are dropped, and agents stop at merge-ready.
 - Some pieces are new, such as the `sprint-priorities` playbook and screenshots as proof in Opening a PR.
 
 ## Credit

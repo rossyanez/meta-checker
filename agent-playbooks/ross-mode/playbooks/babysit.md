@@ -2,7 +2,7 @@
 
 Starts with scouts: no.
 
-Translated from pstack `playbooks/babysit.md`. Changed: one PR, no stacks, `gh` only. `watch-pr` and `/loop` → `gh pr checks` plus a Paseo heartbeat; Bugbot → whatever review comments the PR has, from people or bots. Modes cut to `drive` and `check`. It stops at merge-ready and never merges. It reads every check, not `--required`, because a repo without branch protection reports none. No scouts: the PR's checks and comments are the evidence. Not ported: stacks and the merge frontier, Origin, Graphite, and the Shipping playbook. Dropped: the `background` and `threads-only` modes, and `references/bugbot-triage.md` and its pass count.
+Translated from pstack `playbooks/babysit.md`. Changed: one PR, no stacks, `gh` only. `watch-pr` and `/loop` → `gh pr checks` plus a Paseo heartbeat; a named review bot → whatever review comments the PR has, from people or bots. Modes cut to `drive` and `check`. It stops at merge-ready and never merges. It reads every check, not `--required`, because a repo without branch protection reports none. No scouts: the PR's checks and comments are the evidence. Not ported: stacks and the merge frontier, Origin, stacked-PR tools, and the Shipping playbook. Dropped: the `background` and `threads-only` modes, and the review-bot triage reference and its pass count.
 
 Runs when I say "babysit #N", "get it green", or "is it green", and from Autonomous run step 9 when the finish condition needs CI green.
 
@@ -37,7 +37,7 @@ Runs when I say "babysit #N", "get it green", or "is it green", and from Autonom
    - Anything else is a blocker: report it with its owner and stop. That covers a failure in code the diff never touches, a second identical failure after the rerun, and a `cancel` that a rerun didn't clear.
 
    Principle: **Fix Root Causes** (`principles/fix-root-causes.md`).
-5. **Triage every review comment skeptically.** People, Bugbot, Copilot, Codex: same rule. Verify each claim against the code.
+5. **Triage every review comment skeptically.** People, review bots and other agents get the same rule. Verify each claim against the code.
    - A real finding is a fix for step 6.
    - Start every reply with `Babysit:`. A thread you already answered once that waits on you again goes in the report, not into a second reply.
    - A wrong one gets a reply with the concrete disproof. On an inline thread, reply to its first comment's `databaseId`:
