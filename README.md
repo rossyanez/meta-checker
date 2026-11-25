@@ -22,6 +22,26 @@ Every change in this repo went through the same pipeline, and each step leaves e
 
 The agent playbooks are based on Lauren Tan's open-source [pstack](https://github.com/cursor/plugins/tree/main/pstack) (MIT).
 
+## Run locally
+
+Needs Node 24.
+
+```sh
+npm ci
+npm run dev        # http://localhost:3000/tools/meta-checker
+npm test           # unit tests (Vitest)
+npm run lint       # ESLint and type check
+npx playwright install chromium
+npm run test:e2e   # builds the app and runs the browser smoke test
+```
+
+With Docker:
+
+```sh
+docker build -t meta-checker .
+docker run --rm -p 3000:3000 meta-checker   # http://localhost:3000/tools/meta-checker
+```
+
 ## License
 
 MIT
