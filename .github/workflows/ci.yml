@@ -69,5 +69,8 @@ jobs:
           for i in $(seq 1 30); do curl -sf -o /dev/null http://localhost:3000/tools/meta-checker && break; sleep 1; done
           test "$(curl -sS -o page.html -w '%{http_code}' http://localhost:3000/tools/meta-checker)" = 200
           grep -q '>Check<' page.html
+          asset=$(grep -o '/tools/meta-checker/_next/static/[^"]*\.js' page.html | sed -n 1p)
+          test -n "$asset"
+          curl -sf -o /dev/null "http://localhost:3000$asset"
       - if: always()
         run: docker logs meta-checker
