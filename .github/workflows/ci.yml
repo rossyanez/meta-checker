@@ -22,6 +22,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
+      - name: Run the playbook hook and script tests
+        run: for t in agent-playbooks/ross-mode/{hooks,scripts}/test-*.sh; do bash "$t" || exit 1; done
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
 
