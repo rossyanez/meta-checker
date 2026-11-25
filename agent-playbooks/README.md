@@ -12,7 +12,7 @@ This folder holds a copy of `ross-mode`, the Claude Code skill whose agents buil
 6. In this repo, branch protection on `master` requires the `ross-mode/verdict` status plus the `test`, `lint` and `gitleaks` CI checks.
 7. A human merges. No playbook merges.
 
-Posting to GitHub goes through one door. The `deny-bare-gh-posts` hook denies `gh issue` and `gh pr` commands that comment, create, edit, close or review, and `gh api` writes. Agents post through `ross-mode/scripts/gh-post.sh`, which first checks that the issue or PR was opened by the owner or is assigned to them.
+Posting to GitHub goes through one door. The `deny-bare-gh-posts` hook denies `gh issue` and `gh pr` commands that comment, create, edit, close or review, and most `gh api` writes. Agents post through `ross-mode/scripts/gh-post.sh`, which first checks that the issue or PR was opened by the owner or is assigned to them.
 
 ## How to try it
 
@@ -63,12 +63,11 @@ The playbooks, principles and practices are adapted from [pstack](https://github
 
 ## Scripts left out
 
-Some playbooks name scripts that this copy leaves out, because each one depends on the machine or accounts it was written for. The sentences that name them still describe how the original setup runs.
+This copy carries only the scripts that the hooks and the posting, verdict and plan steps need. Those are `gh-post.sh`, `verdict-status.sh` and `check-plan.mjs`. Some playbooks name other scripts, which stay out. The sentences that name them still describe how the original setup runs.
 
-- `doctor.sh` checks the local install for the Setup playbook.
+- `doctor.sh` checks the local install for the Setup playbook. It is tied to the owner's machine.
 - `log.sh` appends decision-log rows under `$PASEO_HOME/audit/`.
-- `port-status.sh` checks port notes against a tracking file that isn't published.
 - `pr-screenshots.sh` uploads PR screenshots to a `pr-assets` branch.
-- `sprint-tickets.sh` reads the owner's GitHub Project sprints.
+- `sprint-tickets.sh` reads the owner's GitHub Project sprints. It is tied to the owner's account.
 - `worktree-audit.sh` lists branches and worktrees for the Cleanup playbook.
-- `resume-after-limit.py` resumes agents after a usage limit, from a scheduler on the owner's machine. It records each resume through `log.sh`, so its test can't run without it.
+- `resume-after-limit.py` resumes agents after a usage limit. It is tied to a scheduler on the owner's machine, and it records each resume through `log.sh`.
