@@ -21,10 +21,10 @@ describe('parsePage', () => {
       canonicals: ['https://example.com/complete'],
       robots: { tags: ['index, follow'], index: true, follow: true },
       headings: [
-        { level: 1, text: 'Welcome to the example', length: 22 },
-        { level: 2, text: 'What this page covers', length: 21 },
-        { level: 3, text: 'Details', length: 7 },
-        { level: 2, text: 'Contact', length: 7 },
+        { level: 1, text: 'Welcome to the example' },
+        { level: 2, text: 'What this page covers' },
+        { level: 3, text: 'Details' },
+        { level: 2, text: 'Contact' },
       ],
       headingCount: 4,
       og: {
@@ -40,7 +40,6 @@ describe('parsePage', () => {
         'https://example.com/head-405',
         'https://example.com/fixtures/complete.html',
       ],
-      linkCount: 4,
     })
   })
 
@@ -54,7 +53,6 @@ describe('parsePage', () => {
       headingCount: 0,
       og: noOg,
       links: [],
-      linkCount: 0,
     })
   })
 
@@ -64,11 +62,10 @@ describe('parsePage', () => {
       descriptions: [''],
       canonicals: [''],
       robots: { tags: [''], index: true, follow: true },
-      headings: [{ level: 1, text: '', length: 0 }],
+      headings: [{ level: 1, text: '' }],
       headingCount: 1,
       og: { ...noOg, title: [''], image: [''] },
       links: [],
-      linkCount: 0,
     })
   })
 
@@ -79,13 +76,12 @@ describe('parsePage', () => {
       canonicals: ['https://example.com/first', 'https://example.com/second'],
       robots: { tags: ['noindex', 'nofollow'], index: false, follow: false },
       headings: [
-        { level: 1, text: 'One', length: 3 },
-        { level: 1, text: 'Two', length: 3 },
+        { level: 1, text: 'One' },
+        { level: 1, text: 'Two' },
       ],
       headingCount: 2,
       og: { ...noOg, title: ['First social title', 'Second social title'] },
       links: ['https://example.org/page'],
-      linkCount: 1,
     })
   })
 
@@ -95,11 +91,10 @@ describe('parsePage', () => {
       descriptions: ['Uppercase tags and unquoted names.'],
       canonicals: ['https://example.com/malformed-canonical'],
       robots: { tags: ['NOINDEX'], index: false, follow: true },
-      headings: [{ level: 2, text: 'Unclosed bold heading', length: 21 }],
+      headings: [{ level: 2, text: 'Unclosed bold heading' }],
       headingCount: 1,
       og: { ...noOg, title: ['Social title from the body'] },
       links: ['https://example.com/fixtures/complete.html'],
-      linkCount: 1,
     })
   })
 
@@ -113,7 +108,6 @@ describe('parsePage', () => {
       'https://example.org/protocol-relative',
       'https://example.com/padded',
     ])
-    expect(facts.linkCount).toBe(3)
   })
 
   test('relative URLs resolve against the page URL when there is no base', () => {
@@ -139,37 +133,49 @@ describe('parsePage', () => {
     const facts = parseFixture('headings.html')
     const long = '0123456789'.repeat(1000)
     expect(facts.headings).toEqual([
-      { level: 3, text: 'Third level first', length: 17 },
-      { level: 1, text: 'Main heading with inline markup', length: 31 },
-      { level: 6, text: 'Sixth level', length: 11 },
-      { level: 2, text: 'Part two', length: 8 },
-      { level: 5, text: 'Fifth level', length: 11 },
-      { level: 4, text: 'Fourth level', length: 12 },
-      { level: 2, text: `${long.slice(0, 300)}…`, length: 10000 },
+      { level: 3, text: 'Third level first' },
+      { level: 1, text: 'Main heading with inline markup' },
+      { level: 6, text: 'Sixth level' },
+      { level: 2, text: 'Part two' },
+      { level: 5, text: 'Fifth level' },
+      { level: 4, text: 'Fourth level' },
+      { level: 2, text: `${long.slice(0, 300)}…` },
     ])
     expect(facts.headingCount).toBe(7)
   })
 
-  test('lengths count code points, not UTF-16 units', () => {
-    const facts = parsePage('<title>Café 🚀</title><h1>🚀🚀</h1>', 'https://example.com/')
+  test('the heading text cap counts code points, not UTF-16 units', () => {
+    const facts = parsePage(`<title>Café 🚀</title><h1>${'🚀'.repeat(301)}</h1>`, 'https://example.com/')
     expect(facts.titles).toEqual(['Café 🚀'])
-    expect(facts.headings).toEqual([{ level: 1, text: '🚀🚀', length: 2 }])
+    expect(facts.headings).toEqual([{ level: 1, text: `${'🚀'.repeat(300)}…` }])
+  })
+
+  test('a heading nested thousands of elements deep still parses', () => {
+    const depth = 6000
+    const html = `<h1>${'<span>'.repeat(depth)}deep${'</span>'.repeat(depth)}</h1>`
+    expect(parsePage(html, 'https://example.com/').headings).toEqual([{ level: 1, text: 'deep' }])
+  })
+
+  test('heading text leaves out script, style and template content', () => {
+    const html =
+      '<h2>a<script>var x=1</script>b<style>h2{color:red}</style>c<template><b>hidden</b></template></h2>'
+    expect(parsePage(html, 'https://example.com/').headings).toEqual([{ level: 2, text: 'abc' }])
   })
 
   test('keeps at most 200 headings but counts them all', () => {
     const html = Array.from({ length: 250 }, (_, i) => `<h2>Heading ${i}</h2>`).join('')
     const facts = parsePage(html, 'https://example.com/')
     expect(facts.headings).toHaveLength(200)
-    expect(facts.headings[199]).toEqual({ level: 2, text: 'Heading 199', length: 11 })
+    expect(facts.headings[199]).toEqual({ level: 2, text: 'Heading 199' })
     expect(facts.headingCount).toBe(250)
   })
 
-  test('keeps at most 5000 links but counts every unique one', () => {
+  test('keeps every unique link', () => {
     const html = Array.from({ length: 6000 }, (_, i) => `<a href="/p/${i % 5500}">x</a>`).join('')
     const facts = parsePage(html, 'https://example.com/')
-    expect(facts.links).toHaveLength(5000)
-    expect(facts.links[4999]).toBe('https://example.com/p/4999')
-    expect(facts.linkCount).toBe(5500)
+    expect(facts.links).toHaveLength(5500)
+    expect(facts.links[5499]).toBe('https://example.com/p/5499')
+    expect(facts).not.toHaveProperty('linkCount')
   })
 
   test('robots: none turns off both, tokens are case-insensitive', () => {
@@ -223,6 +229,26 @@ describe('decodeHtml', () => {
     const body = bytes('caf', [0xc3, 0xa9])
     expect(decodeHtml(body, 'text/html; charset=not-a-charset')).toBe('café')
     expect(decodeHtml(body, null)).toBe('café')
+  })
+
+  test('an unknown header label is ignored and the meta charset is used', () => {
+    const body = bytes('<meta charset="windows-1252">caf', [0xe9])
+    expect(decodeHtml(body, 'text/html; charset=foo')).toBe('<meta charset="windows-1252">café')
+  })
+
+  test.each(['utf-16', 'UTF-16LE', 'utf-16be'])('a meta that names %s means utf-8', (label) => {
+    const body = bytes(`<meta charset="${label}">caf`, [0xc3, 0xa9])
+    expect(decodeHtml(body, 'text/html')).toBe(`<meta charset="${label}">café`)
+  })
+
+  test('an unknown meta label is skipped for the next meta', () => {
+    const body = bytes('<meta charset="bogus"><meta charset="windows-1252">caf', [0xe9])
+    expect(decodeHtml(body, null)).toMatch(/café$/)
+  })
+
+  test('a meta charset inside a comment is ignored', () => {
+    const body = bytes('<!-- <meta charset="shift_jis"> -->caf', [0xc3, 0xa9])
+    expect(decodeHtml(body, 'text/html')).toBe('<!-- <meta charset="shift_jis"> -->café')
   })
 
   test('invalid bytes do not throw', () => {
