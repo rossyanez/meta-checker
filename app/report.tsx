@@ -74,6 +74,20 @@ export function Report({ report }: { report: CheckReport }): ReactNode {
               ))}
             </ul>
           )}
+          {links.skipped.length > 0 && (
+            <>
+              <p className="state" id="report-skipped-links">
+                Skipped (not public)
+              </p>
+              <ul className="values" aria-labelledby="report-skipped-links">
+                {links.skipped.map((probe) => (
+                  <li key={probe.url}>
+                    <span className="value">{probe.url}</span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
         </Section>
       )}
 

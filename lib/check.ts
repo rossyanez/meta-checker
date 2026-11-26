@@ -12,8 +12,11 @@ export type Report = {
   speed: { ttfbMs: number; htmlBytes: number }
   /** null when the response is not HTML. The link list stays on the server; `links.found` counts it. */
   page: Omit<PageFacts, 'links'> | null
-  /** `stoppedEarly` is true when the phase deadline hit before every link up to the cap was probed. */
-  links: { found: number; checked: number; broken: LinkProbe[]; stoppedEarly: boolean } | null
+  /**
+   * `skipped` holds links we refused to check because they point at a private, local or non-web address.
+   * `stoppedEarly` is true when the phase deadline hit before every link up to the cap was probed.
+   */
+  links: { found: number; checked: number; broken: LinkProbe[]; skipped: LinkProbe[]; stoppedEarly: boolean } | null
 }
 
 export type CheckFailure = FetchFailure | 'unexpected'
@@ -115,8 +118,16 @@ async function checkLinks(
     return deadline.aborted && probe.status === null ? null : probe
   })
   const finished = probes.filter((probe): probe is LinkProbe => probe !== null && probe !== undefined)
-  const broken = finished.filter((probe) => probe.status === null || probe.status >= 400)
-  return { found: urls.length, checked: finished.length, broken, stoppedEarly: finished.length < toCheck.length }
+  // A refused link is our choice, not the site's fault, so it is skipped rather than broken.
+  const skipped = finished.filter((probe) => probe.error === 'blocked')
+  const broken = finished.filter((probe) => probe.error !== 'blocked' && (probe.status === null || probe.status >= 400))
+  return {
+    found: urls.length,
+    checked: finished.length,
+    broken,
+    skipped,
+    stoppedEarly: finished.length < toCheck.length,
+  }
 }
 
 /**
