@@ -58,13 +58,20 @@ docker run --rm -p 3000:3000 meta-checker   # http://localhost:3000/tools/meta-c
 
 The checker fetches addresses that visitors type, so it guards what it connects to and how often it runs.
 
-- **Public addresses only.** Every request, redirect hop and link check must use `http` or `https`, port 80 or 443, no username or password, and a host that is not `localhost`. Every address the host resolves to must be global unicast: private, loopback, link-local, carrier-grade NAT, NAT64, multicast, reserved and cloud metadata addresses are refused. The check runs inside the connection's own DNS lookup, so the address checked is the address connected to (no DNS rebinding window). Refused pages show an error; refused links are listed as skipped.
-- **Size and time limits.** A page may be at most 5 MB. Connecting may take 3 seconds, the page 10 seconds in total (a slow trickle included), and each link 5 seconds.
+- **Public addresses only.** Every request, redirect hop and link check must use `http` or `https`, port 80 or 443, no username or password, and a host that is not `localhost`. Every address the host resolves to must be global unicast (for IPv6, inside `2000::/3`): private, loopback, link-local, carrier-grade NAT, NAT64, multicast, reserved and cloud metadata addresses are refused. The check runs inside the connection's own DNS lookup, so the address checked is the address connected to (no DNS rebinding window). Refused pages show an error; refused links are listed as skipped.
+- **Size and time limits.** A page may be at most 5 MB. Connecting may take 3 seconds and the page 10 seconds in total, a slow trickle included. A link check can take up to 7 seconds: 2 for a HEAD request, then 5 for a GET if the HEAD fails. The whole link phase stops after 15 seconds.
 - **Rate limit.** Each visitor gets 10 checks a minute. The count is kept in memory for one server instance: a restart resets it, and several instances each count separately. IPv6 visitors are counted by their /64.
 - **Visitor address.** `npm start` and the Docker image start the server with `node -r ./lib/peer-address.cjs`. That preload stamps each request with the address of the socket it came in on. Next only fills `X-Forwarded-For` when the client sent none, so without it a visitor could hide their address by sending that header. Keep the preload if you start `server.js` another way; without it every visitor shares one bucket.
 - **Behind a proxy.** Set `TRUSTED_PROXY_HOPS` to the number of proxies that append to `X-Forwarded-For` in front of the app. The default, 0, trusts no forwarded header. Behind Coolify's Traefik, that is one proxy hop, so set `TRUSTED_PROXY_HOPS=1`. The server refuses to start if the value is not a whole number.
 - **Tests only.** `META_CHECKER_TEST_ALLOW_LOOPBACK=1` lets the end-to-end tests reach their local fixture server. Never set it in production.
-- **Lint.** `fetch`, `undici` and Node's socket modules are allowed only in `lib/fetcher.ts` and `lib/destination.ts`, so a new request can't skip the checks.
+- **Lint.** `fetch` (also through `globalThis`), `WebSocket`, `EventSource`, `undici` and Node's network modules (imported, required or loaded with `import()`) are allowed only in `lib/fetcher.ts` and `lib/destination.ts`. Lint can't see a module name built at run time, so review still matters.
+
+Known limits:
+
+- A blocked result tells a visitor that a name resolves to a private address in the server's DNS. No port scan is possible, because only ports 80 and 443 are ever tried.
+- One check can send up to about 100 requests (HEAD and GET for 50 links) to the hosts the page links to. The rate limit bounds this per visitor, but there is no cap per destination.
+- An `X-Forwarded-For` entry that carries a port puts that visitor in the shared bucket. Traefik doesn't add ports.
+- DNS lookups use the system resolver, which an abort doesn't cancel.
 
 ## License
 
