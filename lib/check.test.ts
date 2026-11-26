@@ -56,7 +56,7 @@ describe('checkUrl', () => {
 
   test('checks at most 50 links, at most 8 at a time', async () => {
     const report = reportOf(await checkUrl(`${server.url}/many-links`, { policy: fixturePolicy }))
-    expect(report.links).toEqual({ found: 60, checked: 50, broken: [], stoppedEarly: false })
+    expect(report.links).toEqual({ found: 60, checked: 50, broken: [], skipped: [], stoppedEarly: false })
     expect(server.maxInFlight()).toBeLessThanOrEqual(8)
     expect(server.maxInFlight()).toBeGreaterThan(1)
   })
@@ -84,6 +84,25 @@ describe('checkUrl', () => {
         { url: closed, status: null, error: 'network' },
         { url: `${server.url}/status/500`, status: 500 },
         { url: `${server.url}/status/404`, status: 404 },
+      ],
+      skipped: [],
+      stoppedEarly: false,
+    })
+  })
+
+  test('links to private addresses are skipped, not broken', async () => {
+    const hrefs = ['http://10.0.0.1/admin', '/status/404', 'http://169.254.169.254/latest/meta-data/', '/fixtures/complete.html']
+    const query = hrefs.map((h) => `href=${encodeURIComponent(h)}`).join('&')
+    const report = reportOf(
+      await checkUrl(`${server.url}/link-list?${query}`, { policy: fixturePolicy, linkTimeoutMs: 1_000 }),
+    )
+    expect(report.links).toEqual({
+      found: 4,
+      checked: 4,
+      broken: [{ url: `${server.url}/status/404`, status: 404 }],
+      skipped: [
+        { url: 'http://10.0.0.1/admin', status: null, error: 'blocked' },
+        { url: 'http://169.254.169.254/latest/meta-data/', status: null, error: 'blocked' },
       ],
       stoppedEarly: false,
     })

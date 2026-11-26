@@ -26,7 +26,7 @@ function buildReport(page: Partial<PageSummary> | null, overrides: Partial<Check
     contentType: 'text/html; charset=utf-8',
     speed: { ttfbMs: 123, htmlBytes: 2560 },
     page: page && { ...emptyPage, ...page },
-    links: page && { found: 0, checked: 0, broken: [], stoppedEarly: false },
+    links: page && { found: 0, checked: 0, broken: [], skipped: [], stoppedEarly: false },
     ...overrides,
   }
 }
@@ -198,6 +198,7 @@ describe('Report', () => {
                 { url: 'https://example.org/down', status: null, error: 'network' },
                 { url: 'https://example.org/slow', status: null, error: 'timeout' },
               ],
+              skipped: [],
               stoppedEarly: false,
             },
           },
@@ -217,14 +218,52 @@ describe('Report', () => {
   })
 
   test('says when no broken links were found', () => {
-    render(<Report report={buildReport({}, { links: { found: 3, checked: 3, broken: [], stoppedEarly: false } })} />)
+    render(<Report report={buildReport({}, { links: { found: 3, checked: 3, broken: [], skipped: [], stoppedEarly: false } })} />)
     expect(section('Broken links').getByText('Checked 3 of 3 links')).toBeTruthy()
     expect(section('Broken links').getByText('No broken links found')).toBeTruthy()
     expect(section('Broken links').queryByText(/Stopped after/)).toBeNull()
+    expect(section('Broken links').queryByText('Skipped (not public)')).toBeNull()
+  })
+
+  test('links we refused to check are listed as skipped, not broken', () => {
+    render(
+      <Report
+        report={buildReport(
+          {},
+          {
+            links: {
+              found: 3,
+              checked: 3,
+              broken: [{ url: 'https://example.com/gone', status: 404 }],
+              skipped: [
+                { url: 'http://10.0.0.1/admin', status: null, error: 'blocked' },
+                { url: 'http://localhost:8080/', status: null, error: 'blocked' },
+              ],
+              stoppedEarly: false,
+            },
+          },
+        )}
+      />,
+    )
+    const links = section('Broken links')
+    const skipped = within(links.getByRole('list', { name: 'Skipped (not public)' }))
+    expect(skipped.getAllByRole('listitem').map((li) => li.textContent)).toEqual([
+      'http://10.0.0.1/admin',
+      'http://localhost:8080/',
+    ])
+    expect(links.getAllByText('http://10.0.0.1/admin')).toHaveLength(1)
+    expect(links.queryByText('No broken links found')).toBeNull()
+  })
+
+  test('says no broken links were found when every failing link was skipped', () => {
+    const skipped = [{ url: 'http://10.0.0.1/', status: null, error: 'blocked' as const }]
+    render(<Report report={buildReport({}, { links: { found: 1, checked: 1, broken: [], skipped, stoppedEarly: false } })} />)
+    expect(section('Broken links').getByText('No broken links found')).toBeTruthy()
+    expect(section('Broken links').getByRole('list', { name: 'Skipped (not public)' })).toBeTruthy()
   })
 
   test('says when the link check stopped at its deadline', () => {
-    render(<Report report={buildReport({}, { links: { found: 60, checked: 16, broken: [], stoppedEarly: true } })} />)
+    render(<Report report={buildReport({}, { links: { found: 60, checked: 16, broken: [], skipped: [], stoppedEarly: true } })} />)
     const links = section('Broken links')
     expect(links.getByText('Checked 16 of 60 links')).toBeTruthy()
     expect(links.getByText('Stopped after 15 seconds, so some links were not checked.')).toBeTruthy()
