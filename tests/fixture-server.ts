@@ -24,7 +24,7 @@ export async function startFixtureServer(): Promise<FixtureServer> {
   let maxInFlight = 0
 
   async function handle(req: IncomingMessage, res: ServerResponse) {
-    const path = new URL(req.url ?? '/', 'http://fixture.invalid').pathname
+    const { pathname: path, searchParams } = new URL(req.url ?? '/', 'http://fixture.invalid')
 
     const fixture = /^\/fixtures\/([\w-]+\.html)$/.exec(path)
     if (fixture) {
@@ -68,6 +68,14 @@ export async function startFixtureServer(): Promise<FixtureServer> {
         return send(res, 200, `\n  ${html('<h1>No content type</h1>')}`)
       case '/echo-headers':
         return send(res, 200, JSON.stringify(req.headers), { 'Content-Type': 'application/json' })
+      case '/link-list':
+        // One link per `href` query parameter, in order.
+        return send(
+          res,
+          200,
+          html(searchParams.getAll('href').map((href) => `<a href="${href}">link</a>`).join('\n')),
+          htmlType,
+        )
       case '/many-links':
         return send(
           res,
