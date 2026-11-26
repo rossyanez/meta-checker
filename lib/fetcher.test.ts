@@ -227,6 +227,15 @@ describe('fetchPage refuses destinations that are not public web servers', () =>
     expect(policy.calls).toEqual(['mixed.example.test'])
   })
 
+  test('an empty DNS answer is blocked', async () => {
+    const policy = answering(false, [])
+    expect(await fetchPage('http://empty.example.test/', { policy, timeoutMs: QUICK })).toEqual({
+      ok: false,
+      reason: 'blocked',
+    })
+    expect(policy.calls).toEqual(['empty.example.test'])
+  })
+
   test('a port other than 80 or 443 is blocked', async () => {
     const policy = answering(false, ['93.184.215.14'])
     expect(await fetchPage('http://shop.example.test:8080/', { policy, timeoutMs: QUICK })).toEqual({
@@ -316,5 +325,17 @@ describe('probeLink refuses destinations that are not public web servers', () =>
       status: null,
       error: 'blocked',
     })
+  })
+})
+
+describe('fetchPage gives up on a connection that never opens', () => {
+  // 15 s, so a missing connect timeout fails on the assertion after the 10 s page budget, not on Vitest's limit.
+  test('a connect that hangs fails after the connect timeout, well inside the page budget', { timeout: 15_000 }, async () => {
+    const policy = { resolve: () => new Promise<never>(() => {}), allowLoopback: false }
+    const started = Date.now()
+    expect(await fetchPage('http://stalled.example.test/', { policy })).toEqual({ ok: false, reason: 'network' })
+    const elapsed = Date.now() - started
+    expect(elapsed).toBeGreaterThanOrEqual(2_500)
+    expect(elapsed).toBeLessThan(5_000)
   })
 })
