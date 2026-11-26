@@ -1,0 +1,19 @@
+### Bug fix
+
+Starts with scouts: no.
+
+Ported from pstack `playbooks/bug-fix.md`. Changed: the control skills → the Paseo browser tools; `architect` → step 3. Not yet ported: `why`. TDD is in `practices/tdd.md`; the worker follows it when step 3 names a seam.
+
+**You own this task. Plan, review, verify.**
+
+Be scientific. Every shipped line traces to runtime evidence. A change that "might help" is a hypothesis, not a fix, and it does not ship. When evidence refutes a hypothesis, have a `worker` revert what it motivated. Ship the smallest change the evidence justifies.
+
+1. Reproduce it yourself on the surface where it happens: run the command, the test, or drive the UI with the Paseo browser tools. Ask me to reproduce only with a specific reason you can't reach it, and only after going as far as you can. If it won't reproduce, synthesize the trigger, tighten conditions, or have a `worker` add logging at your direction until it fires. Principle: **Fix Root Causes** (`principles/fix-root-causes.md`).
+2. Binary-search the cause. List candidate hypotheses, then rule them out until one survives. Each pass, take the split that cuts the most remaining problem space and get runtime evidence. When program state is unclear, have a `worker` add logging at your direction and read it as the code runs. Don't guess. Confirm the surviving mechanism with runtime evidence before planning the fix. Principle: **Fix Root Causes** (`principles/fix-root-causes.md`).
+3. Plan the fix. When the fix crosses a function boundary, run steps 1–3 of the **Architect** playbook (`playbooks/architect.md`) first, and add those steps to your todo list, copied in verbatim. Architect's step 3 hands back here, not to its step 4. Skip its scaffold commit, and hand the synthesized sketch to the worker below as its contract. The worker reports every deviation from the sketch, as in Architect step 4. When the same kind of deviation keeps coming back, run Architect step 5. Then delegate the fix to a Paseo `worker` agent with a specific scope (see **Subagents** in the router). This is mandatory, with no skip, even for a one-line fix: the point is that the writer and the reviewer are different agents. Its scope includes removing any logging added in steps 1–2. The worker runs in this same workspace, so it sees everything you see, gitignored files included. When there's a cheap local test path, name the test seam in the handover, so the worker writes the failing test first and the fix second. When there isn't, say so in the handover. Review its diff yourself. Laziness sizes the fix; it never skips the worker. Principle: **Laziness Protocol** (`principles/laziness-protocol.md`).
+4. Verify on the same surface as step 1. The original repro now passes. "Inconclusive" or a different surface is not a pass, so flag it. Unit tests show branch behavior, not bug absence. Principle: **Prove It Works** (`principles/prove-it-works.md`).
+5. If you named a seam in step 3, check the worker's proof: the test failed before the fix and passes after it. If you named none, mark this `skip: <why there was no cheap test path>`. Principle: **Prove It Works** (`principles/prove-it-works.md`). Principle: **Sequence Verifiable Units** (`principles/sequence-verifiable-units.md`).
+6. Check whether this bug's class has happened before: search `git log` and closed issues for the same kind of mistake. If it has, list the earlier occurrences and tell me that after this PR, the **Correction** playbook (`playbooks/correction.md`) should run as its own ticket. If it hasn't, mark this `skip: first occurrence`.
+7. Run the **Opening a PR** playbook (`playbooks/opening-a-pr.md`). Add its steps to your todo list, copied in verbatim.
+
+**Reply:** what was broken, the root cause, the fix, and how you verified it. Paste the failing-then-passing repro output verbatim. If step 6 found earlier occurrences, list them.
