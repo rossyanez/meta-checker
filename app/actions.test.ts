@@ -136,3 +136,27 @@ describe('the per-visitor rate limit', () => {
     await expect(loadAction(value)).rejects.toThrow(/TRUSTED_PROXY_HOPS/)
   })
 })
+
+test('a report comes with a share token that decodes to the same report', async () => {
+  const { startFixtureServer } = await import('../tests/fixture-server')
+  const server = await startFixtureServer()
+  try {
+    vi.stubEnv('META_CHECKER_TEST_ALLOW_LOOPBACK', '1')
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const checkAction = await loadAction()
+    const { decodeShare } = await import('../lib/share')
+    request.headers = new Headers({ 'x-meta-checker-peer': '203.0.113.1' })
+    const form = new FormData()
+    form.set('url', `${server.url}/fixtures/complete.html`)
+
+    const result = await checkAction(null, form)
+
+    expect(result.kind).toBe('report')
+    if (result.kind !== 'report') return
+    expect(result.shareToken).toEqual(expect.any(String))
+    expect(decodeShare(result.shareToken!)).toMatchObject({ ok: true, report: result.report })
+  } finally {
+    vi.restoreAllMocks()
+    await server.close()
+  }
+})

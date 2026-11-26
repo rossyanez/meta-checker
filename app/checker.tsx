@@ -1,7 +1,9 @@
 'use client'
 
+import Link from 'next/link'
 import { useActionState, useEffect, useRef, useState } from 'react'
 import { checkAction } from './actions'
+import { HireCta } from './hire-cta'
 import { Report } from './report'
 
 export function Checker() {
@@ -48,6 +50,14 @@ export function Checker() {
       {!pending && result?.kind === 'report' && (
         <div ref={reportRef}>
           <Report report={result.report} />
+          <p className="share-link">
+            {result.shareToken === null ? (
+              'This report is too large to share.'
+            ) : (
+              <Link href={`/r/${result.shareToken}`}>Share this report</Link>
+            )}
+          </p>
+          <HireCta />
         </div>
       )}
     </>

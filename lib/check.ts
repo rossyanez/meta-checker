@@ -3,6 +3,7 @@ import { fetchPage, MAX_PAGE_BYTES, probeLink, type FetchFailure, type FetchedPa
 import { LINK_PHASE_MS } from './limits'
 import { decodeHtml, parsePage, type PageFacts } from './parse-page'
 
+// Bump VERSION in lib/share.ts when this shape changes: share tokens live 90 days and outlive deploys.
 export type Report = {
   requestedUrl: string
   finalUrl: string

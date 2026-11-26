@@ -6,7 +6,8 @@ import { join, resolve } from 'node:path'
 // Vitest and Playwright both run from the repo root.
 const fixturesDir = resolve('tests/fixtures')
 
-export type FixtureServer = { url: string; close(): Promise<void>; maxInFlight(): number }
+/** `requests()` counts every request the server has received, so tests can prove nothing else was fetched. */
+export type FixtureServer = { url: string; close(): Promise<void>; maxInFlight(): number; requests(): number }
 
 const sleep = (ms: number) => new Promise((done) => setTimeout(done, ms))
 
@@ -22,6 +23,7 @@ const htmlType = { 'Content-Type': 'text/html; charset=utf-8' }
 export async function startFixtureServer(): Promise<FixtureServer> {
   let inFlight = 0
   let maxInFlight = 0
+  let requests = 0
 
   async function handle(req: IncomingMessage, res: ServerResponse) {
     const { pathname: path, searchParams } = new URL(req.url ?? '/', 'http://fixture.invalid')
@@ -136,6 +138,7 @@ export async function startFixtureServer(): Promise<FixtureServer> {
   }
 
   const server = createServer((req, res) => {
+    requests++
     handle(req, res).catch(() => res.destroy())
   })
   await new Promise<void>((done) => server.listen(0, '127.0.0.1', done))
@@ -144,6 +147,7 @@ export async function startFixtureServer(): Promise<FixtureServer> {
   return {
     url: `http://127.0.0.1:${port}`,
     maxInFlight: () => maxInFlight,
+    requests: () => requests,
     close: () =>
       new Promise<void>((done) => {
         server.closeAllConnections()
