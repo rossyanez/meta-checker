@@ -1,6 +1,18 @@
 # Meta Checker
 
-A free SEO tool: enter a web address and see its title, meta description, canonical, headings, Open Graph tags, robots settings, status code, broken links and basic speed.
+A free SEO tool. Enter a web address and the report shows:
+
+- **Summary.** The status code, the final URL and every redirect on the way.
+- **Title and meta description.** Each with its length in characters.
+- **Canonical and robots.** Including whether search engines may index the page and follow its links.
+- **Headings outline.** H1 to H6 in page order, indented by level.
+- **Open Graph.** `og:title`, `og:description`, `og:image`, `og:url` and `og:type`.
+- **Broken links.** Up to 50 links on the page are checked, and any that fail are listed with their status.
+- **Speed.** Time to first byte and HTML size.
+
+Each tag is marked Missing, Empty, or found more than once (the first one counts).
+
+Network safety (blocking private addresses, plus rate and size limits) lands in [#3](../../issues/3).
 
 **Live:** coming soon at rossyanez.com/tools/meta-checker
 
