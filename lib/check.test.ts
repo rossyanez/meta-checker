@@ -112,7 +112,7 @@ describe('checkUrl', () => {
   test('an error status with an HTML body is still a report', async () => {
     const report = reportOf(await checkUrl(`${server.url}/status/500`))
     expect(report.status).toBe(500)
-    expect(report.page?.headings).toEqual([{ level: 1, text: 'Status 500', length: 10 }])
+    expect(report.page?.headings).toEqual([{ level: 1, text: 'Status 500' }])
   })
 
   test('a slow page is a timeout error with a friendly message', async () => {

@@ -50,7 +50,7 @@ export async function checkUrl(
   const { page: response } = fetched
   const html = htmlOf(response)
   const page = html === null ? null : parsePage(html, response.finalUrl)
-  const links = page && (await checkLinks(page.links, page.linkCount, opts))
+  const links = page && (await checkLinks(page.links, page.links.length, opts))
 
   return {
     kind: 'report',

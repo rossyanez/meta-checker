@@ -15,7 +15,6 @@ const emptyPage: PageFacts = {
   headingCount: 0,
   og: { title: [], description: [], image: [], url: [], type: [] },
   links: [],
-  linkCount: 0,
 }
 
 function buildReport(page: Partial<PageFacts> | null, overrides: Partial<CheckReport> = {}): CheckReport {
@@ -172,9 +171,9 @@ describe('Report', () => {
       <Report
         report={buildReport({
           headings: [
-            { level: 1, text: 'Main', length: 4 },
-            { level: 2, text: 'Part', length: 4 },
-            { level: 3, text: '', length: 0 },
+            { level: 1, text: 'Main' },
+            { level: 2, text: 'Part' },
+            { level: 3, text: '' },
           ],
           headingCount: 253,
         })}
@@ -189,7 +188,7 @@ describe('Report', () => {
     render(
       <Report
         report={buildReport(
-          { linkCount: 60 },
+          {},
           {
             links: {
               found: 60,

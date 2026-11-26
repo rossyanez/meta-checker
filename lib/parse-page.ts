@@ -3,7 +3,7 @@ import { html as htmlSpec, parse, type DefaultTreeAdapterMap } from 'parse5'
 type Node = DefaultTreeAdapterMap['node']
 type Element = DefaultTreeAdapterMap['element']
 
-export type Heading = { level: 1 | 2 | 3 | 4 | 5 | 6; text: string; length: number }
+export type Heading = { level: 1 | 2 | 3 | 4 | 5 | 6; text: string }
 
 export type PageFacts = {
   titles: string[]
@@ -13,13 +13,12 @@ export type PageFacts = {
   headings: Heading[]
   headingCount: number
   og: Record<'title' | 'description' | 'image' | 'url' | 'type', string[]>
+  /** Every unique http(s) link, fragment removed, in document order. */
   links: string[]
-  linkCount: number
 }
 
 const MAX_HEADINGS = 200
 const MAX_HEADING_TEXT = 300
-const MAX_LINKS = 5000
 const META_SNIFF_BYTES = 1024
 
 const OG_KEYS = ['title', 'description', 'image', 'url', 'type'] as const
@@ -27,8 +26,19 @@ type OgKey = (typeof OG_KEYS)[number]
 const OG_URL_KEYS: ReadonlySet<OgKey> = new Set(['image', 'url'])
 
 export function decodeHtml(bytes: Uint8Array, contentType: string | null): string {
-  const label = bomEncoding(bytes) ?? charsetFrom(contentType) ?? metaCharset(bytes) ?? 'utf-8'
-  return decoderFor(label).decode(bytes)
+  // The HTML spec's order: BOM, then a known header label, then the meta prescan, then the default.
+  const encoding = bomEncoding(bytes) ?? knownEncoding(charsetFrom(contentType)) ?? metaCharset(bytes) ?? 'utf-8'
+  return new TextDecoder(encoding).decode(bytes)
+}
+
+/** The canonical encoding name for a label, or null when TextDecoder does not know it. */
+function knownEncoding(label: string | null): string | null {
+  if (label === null) return null
+  try {
+    return new TextDecoder(label).encoding
+  } catch {
+    return null
+  }
 }
 
 function bomEncoding(bytes: Uint8Array): string | null {
@@ -45,25 +55,24 @@ function charsetFrom(value: string | null): string | null {
 
 function metaCharset(bytes: Uint8Array): string | null {
   // latin1 maps each byte to one character, so ASCII markup survives whatever the real encoding is.
-  const head = new TextDecoder('latin1').decode(bytes.subarray(0, META_SNIFF_BYTES))
+  const head = new TextDecoder('latin1')
+    .decode(bytes.subarray(0, META_SNIFF_BYTES))
+    .replace(/<!--[\s\S]*?(?:-->|$)/g, '')
   for (const tag of head.match(/<meta\b[^>]*>/gi) ?? []) {
-    const direct = tag.match(/\bcharset\s*=\s*["']?([^"'\s/>;]+)/i)
-    if (direct && !/\bcontent\s*=/i.test(tag.slice(0, direct.index))) return direct[1]
-    if (/\bhttp-equiv\s*=\s*["']?content-type/i.test(tag)) {
-      const content = tag.match(/\bcontent\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i)
-      const charset = charsetFrom(content ? (content[1] ?? content[2] ?? content[3]) : null)
-      if (charset) return charset
-    }
+    const encoding = knownEncoding(metaLabel(tag))
+    if (encoding === null) continue
+    // A page that could read its own meta as ASCII is not utf-16, so the spec reads it as utf-8.
+    return encoding.startsWith('utf-16') ? 'utf-8' : encoding
   }
   return null
 }
 
-function decoderFor(label: string): TextDecoder {
-  try {
-    return new TextDecoder(label)
-  } catch {
-    return new TextDecoder('utf-8')
-  }
+function metaLabel(tag: string): string | null {
+  const direct = tag.match(/\bcharset\s*=\s*["']?([^"'\s/>;]+)/i)
+  if (direct && !/\bcontent\s*=/i.test(tag.slice(0, direct.index))) return direct[1]
+  if (!/\bhttp-equiv\s*=\s*["']?content-type/i.test(tag)) return null
+  const content = tag.match(/\bcontent\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i)
+  return charsetFrom(content ? (content[1] ?? content[2] ?? content[3]) : null)
 }
 
 export function parsePage(html: string, pageUrl: string): PageFacts {
@@ -81,7 +90,6 @@ export function parsePage(html: string, pageUrl: string): PageFacts {
     headingCount: 0,
     og: { title: [], description: [], image: [], url: [], type: [] },
     links: [],
-    linkCount: 0,
   }
   const links = new Set<string>()
 
@@ -130,8 +138,7 @@ export function parsePage(html: string, pageUrl: string): PageFacts {
   const robotTokens = facts.robots.tags.flatMap((tag) => tokens(tag, /,/))
   facts.robots.index = !robotTokens.some((t) => t === 'noindex' || t === 'none')
   facts.robots.follow = !robotTokens.some((t) => t === 'nofollow' || t === 'none')
-  facts.links = [...links].slice(0, MAX_LINKS)
-  facts.linkCount = links.size
+  facts.links = [...links]
   return facts
 }
 
@@ -153,10 +160,20 @@ function attr(el: Element, name: string): string | null {
   return el.attrs.find((a) => a.name === name && !a.namespace)?.value ?? null
 }
 
-function textOf(node: Node): string {
-  if (node.nodeName === '#text' && 'value' in node) return node.value
-  if (!('childNodes' in node)) return ''
-  return node.childNodes.map(textOf).join('')
+const NO_TEXT = new Set(['script', 'style', 'template'])
+
+/** Text content in document order. Iterative, so deep nesting cannot overflow the stack. */
+function textOf(root: Node): string {
+  const parts: string[] = []
+  const stack: Node[] = [root]
+  while (stack.length) {
+    const node = stack.pop()!
+    if (node.nodeName === '#text' && 'value' in node) parts.push(node.value)
+    else if ('childNodes' in node && !NO_TEXT.has(node.nodeName)) {
+      for (let i = node.childNodes.length - 1; i >= 0; i--) stack.push(node.childNodes[i])
+    }
+  }
+  return parts.join('')
 }
 
 function collapse(text: string): string {
@@ -196,5 +213,5 @@ function headingLevel(tagName: string): Heading['level'] | null {
 function heading(level: Heading['level'], el: Element): Heading {
   const points = [...collapse(textOf(el))]
   const text = points.length > MAX_HEADING_TEXT ? `${points.slice(0, MAX_HEADING_TEXT).join('')}…` : points.join('')
-  return { level, text, length: points.length }
+  return { level, text }
 }
