@@ -1,0 +1,18 @@
+<!doctype html>
+<html>
+<head>
+  <base href="/sub/dir/">
+  <base href="https://example.org/ignored/">
+  <title>Relative Links</title>
+  <link rel="canonical" href="../canonical-page">
+  <meta property="og:image" content="images/card.png">
+  <meta property="og:url" content="/shared">
+</head>
+<body>
+  <a href="page.html">Relative link</a>
+  <a href="//example.org/protocol-relative">Protocol relative</a>
+  <a href="  https://example.com/padded  ">Padded</a>
+  <a href="javascript:void(0)">Script</a>
+  <a href="ftp://example.com/file">FTP</a>
+</body>
+</html>
