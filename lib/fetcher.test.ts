@@ -141,6 +141,11 @@ describe('probeLink', () => {
     expect(Date.now() - started).toBeLessThan(1000)
   })
 
+  test('a slow link that answers after the HEAD share still reports its status', async () => {
+    const url = `${server.url}/delay/700`
+    expect(await probeLink(url, { timeoutMs: 1000 })).toEqual({ url, status: 200 })
+  })
+
   test('a redirect is followed to its final status', async () => {
     const url = `${server.url}/redirect/a`
     expect(await probeLink(url)).toEqual({ url, status: 200 })

@@ -47,6 +47,13 @@ export async function startFixtureServer(): Promise<FixtureServer> {
       return send(res, 200, html(`<h1>Link ${link[1]}</h1>`), htmlType)
     }
 
+    // Answers every method with 200 after the given number of milliseconds.
+    const delay = /^\/delay\/(\d+)$/.exec(path)
+    if (delay) {
+      await sleep(Number(delay[1]))
+      return send(res, 200, html(`<h1>Answered after ${delay[1]} ms</h1>`), htmlType)
+    }
+
     // Never answers, like a server that accepts the connection and then stalls.
     if (/^\/hang\/\d+$/.test(path)) return
 
