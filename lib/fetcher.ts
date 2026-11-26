@@ -14,6 +14,8 @@ export type LinkProbe = { url: string; status: number | null; error?: 'timeout' 
 
 const PAGE_TIMEOUT_MS = 10_000
 const LINK_TIMEOUT_MS = 5_000
+/** HEAD gets this share of a probe's budget, so a hanging HEAD leaves time for the GET. */
+const HEAD_SHARE = 2 / 5
 const MAX_REDIRECTS = 10
 const HEADERS = {
   'User-Agent': 'meta-checker/0.1',
@@ -55,9 +57,10 @@ async function request(
 ): Promise<HopsResult> {
   const redirects: Hops['redirects'] = []
   let url = start
+  // Like browsers, time to first byte counts from the first request, so redirect time is included.
+  const sentAt = performance.now()
   try {
     for (;;) {
-      const sentAt = performance.now()
       const response = await fetch(url, { method, headers: HEADERS, redirect: 'manual', signal })
       const ttfbMs = Math.round(performance.now() - sentAt)
       const location = response.headers.get('location')
@@ -109,12 +112,15 @@ export async function probeLink(url: string, opts: { timeoutMs?: number } = {}):
   const start = parseHttpUrl(url)
   // The parser only hands over http(s) links, so this guards direct callers.
   if (!start) return { url, status: null, error: 'network' }
-  const signal = AbortSignal.timeout(opts.timeoutMs ?? LINK_TIMEOUT_MS)
+  const timeoutMs = opts.timeoutMs ?? LINK_TIMEOUT_MS
+  const signal = AbortSignal.timeout(timeoutMs)
+  const headSignal = AbortSignal.any([signal, AbortSignal.timeout(Math.round(timeoutMs * HEAD_SHARE))])
 
-  const head = await request(start, 'HEAD', signal, MAX_REDIRECTS)
+  const head = await request(start, 'HEAD', headSignal, MAX_REDIRECTS)
   if (head.ok && head.hops.response.status < 400) return { url, status: head.hops.response.status }
-  // Some servers refuse or mishandle HEAD, so a failed or error HEAD gets one GET.
-  if (!head.ok && head.reason !== 'network') return { url, status: null, error: head.reason }
+  if (!head.ok && head.reason === 'too-many-redirects') return { url, status: null, error: head.reason }
+  // Some servers refuse, hang on or mishandle HEAD, so they get one GET with the budget that is left.
+  if (signal.aborted) return { url, status: null, error: 'timeout' }
 
   const get = await request(start, 'GET', signal, MAX_REDIRECTS)
   if (!get.ok) return { url, status: null, error: get.reason }
