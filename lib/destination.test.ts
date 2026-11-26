@@ -33,6 +33,11 @@ describe('isPublicAddress', () => {
     '::102:304',
     '::1.2.3.4',
     '::7f00:1',
+    // Text that is not an IP address, even if a URL parser could read an address out of it.
+    'a@[2001:4860::8888',
+    '[2001:4860::8888]',
+    // A zone id names a local interface; link-local stays refused.
+    'fe80::1%lo0',
   ])(
     '%j is not public',
     (address) => {
