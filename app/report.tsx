@@ -9,6 +9,7 @@ const PROBE_ERRORS: Record<NonNullable<LinkProbe['error']>, string> = {
   network: 'No response',
   timeout: 'Timed out',
   'too-many-redirects': 'Too many redirects',
+  blocked: 'Not public',
 }
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
