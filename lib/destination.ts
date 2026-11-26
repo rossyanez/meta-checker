@@ -1,6 +1,6 @@
 // Where the checker may connect. The fetcher asks this module before every hop and inside every DNS lookup.
 import { promises as dns } from 'node:dns'
-import type { LookupFunction } from 'node:net'
+import { isIP, type LookupFunction } from 'node:net'
 import ipaddr from 'ipaddr.js'
 
 export type Resolve = (hostname: string) => Promise<{ address: string; family: 4 | 6 }[]>
@@ -34,13 +34,13 @@ const GLOBAL_UNICAST_V6 = ipaddr.IPv6.parseCIDR('2000::/3')
 
 /** IPv4-mapped IPv6 (::ffff:a.b.c.d) becomes the IPv4 inside, so it gets the IPv4 rules. */
 function parse(address: string): ipaddr.IPv4 | ipaddr.IPv6 | null {
+  // Only a real address gets this far, never text a URL parser could pull one out of.
+  if (isIP(address) === 0) return null
   // ipaddr.js reads ::a.b.c.d as if it were ::ffff:a.b.c.d. The URL parser writes IPv6 in hex (::102:304),
   // the same form Node's DNS returns, so it is read the way the socket would connect.
   const canonical = address.includes(':') ? URL.parse(`http://[${address}]/`)?.hostname.slice(1, -1) : address
+  // A zone id (fe80::1%lo0) makes the URL parser fail, so that address is refused.
   if (canonical === undefined || !ipaddr.isValid(canonical)) return null
-  const raw = ipaddr.parse(canonical)
-  // Every address whose first 96 bits are zero stays IPv6, outside 2000::/3, so it is refused.
-  if (raw.kind() === 'ipv6' && (raw as ipaddr.IPv6).parts.slice(0, 6).every((part) => part === 0)) return raw
   return ipaddr.process(canonical)
 }
 
