@@ -29,27 +29,30 @@ if (testLoopback) {
 
 export const DEFAULT_POLICY: Policy = { resolve: systemResolve, allowLoopback: testLoopback }
 
-/** The address in its plainest form: IPv4-mapped and IPv4-compatible IPv6 become the IPv4 inside. */
+/** Global unicast IPv6. ipaddr.js labels other IPv6 unicast too, such as 4000::1 and 1::. */
+const GLOBAL_UNICAST_V6 = ipaddr.IPv6.parseCIDR('2000::/3')
+
+/** IPv4-mapped IPv6 (::ffff:a.b.c.d) becomes the IPv4 inside, so it gets the IPv4 rules. */
 function parse(address: string): ipaddr.IPv4 | ipaddr.IPv6 | null {
-  if (!ipaddr.isValid(address)) return null
-  const ip = ipaddr.process(address)
-  // process() unwraps ::ffff:a.b.c.d, but ::a.b.c.d only when written dotted, and URLs write it as hex.
-  if (ip.kind() === 'ipv6') {
-    const parts = (ip as ipaddr.IPv6).parts
-    if (parts.slice(0, 6).every((part) => part === 0)) {
-      return new ipaddr.IPv4([parts[6] >> 8, parts[6] & 0xff, parts[7] >> 8, parts[7] & 0xff])
-    }
-  }
-  return ip
+  // ipaddr.js reads ::a.b.c.d as if it were ::ffff:a.b.c.d. The URL parser writes IPv6 in hex (::102:304),
+  // the same form Node's DNS returns, so it is read the way the socket would connect.
+  const canonical = address.includes(':') ? URL.parse(`http://[${address}]/`)?.hostname.slice(1, -1) : address
+  if (canonical === undefined || !ipaddr.isValid(canonical)) return null
+  const raw = ipaddr.parse(canonical)
+  // Every address whose first 96 bits are zero stays IPv6, outside 2000::/3, so it is refused.
+  if (raw.kind() === 'ipv6' && (raw as ipaddr.IPv6).parts.slice(0, 6).every((part) => part === 0)) return raw
+  return ipaddr.process(canonical)
 }
 
 /**
  * True only for global unicast. Every range ipaddr.js names (private, loopback, link-local, unique local,
  * carrier-grade NAT, NAT64, 6to4, Teredo, reserved and the rest) is refused, so a range we forgot fails closed.
+ * IPv6 must also sit in 2000::/3.
  */
 export function isPublicAddress(address: string): boolean {
   const ip = parse(address)
-  return ip !== null && ip.range() === 'unicast' && !METADATA.has(ip.toString())
+  if (ip === null || ip.range() !== 'unicast' || METADATA.has(ip.toString())) return false
+  return ip.kind() === 'ipv4' || (ip as ipaddr.IPv6).match(GLOBAL_UNICAST_V6)
 }
 
 function addressAllowed(address: string, port: number, policy: Policy): boolean {
