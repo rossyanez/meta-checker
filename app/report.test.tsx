@@ -1,12 +1,13 @@
 import { cleanup, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, test } from 'vitest'
 import type { Report as CheckReport } from '../lib/check'
-import type { PageFacts } from '../lib/parse-page'
 import { Report } from './report'
 
 afterEach(cleanup)
 
-const emptyPage: PageFacts = {
+type PageSummary = NonNullable<CheckReport['page']>
+
+const emptyPage: PageSummary = {
   titles: [],
   descriptions: [],
   canonicals: [],
@@ -14,10 +15,9 @@ const emptyPage: PageFacts = {
   headings: [],
   headingCount: 0,
   og: { title: [], description: [], image: [], url: [], type: [] },
-  links: [],
 }
 
-function buildReport(page: Partial<PageFacts> | null, overrides: Partial<CheckReport> = {}): CheckReport {
+function buildReport(page: Partial<PageSummary> | null, overrides: Partial<CheckReport> = {}): CheckReport {
   return {
     requestedUrl: 'https://example.com/',
     finalUrl: 'https://example.com/',

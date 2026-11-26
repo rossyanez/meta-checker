@@ -108,12 +108,17 @@ export async function fetchPage(
   }
 }
 
-export async function probeLink(url: string, opts: { timeoutMs?: number } = {}): Promise<LinkProbe> {
+/** `signal` lets a caller abort the probe early; the probe then reports a timeout. */
+export async function probeLink(
+  url: string,
+  opts: { timeoutMs?: number; signal?: AbortSignal } = {},
+): Promise<LinkProbe> {
   const start = parseHttpUrl(url)
   // The parser only hands over http(s) links, so this guards direct callers.
   if (!start) return { url, status: null, error: 'network' }
   const timeoutMs = opts.timeoutMs ?? LINK_TIMEOUT_MS
-  const signal = AbortSignal.timeout(timeoutMs)
+  const budget = AbortSignal.timeout(timeoutMs)
+  const signal = opts.signal ? AbortSignal.any([budget, opts.signal]) : budget
   const headSignal = AbortSignal.any([signal, AbortSignal.timeout(Math.round(timeoutMs * HEAD_SHARE))])
 
   const head = await request(start, 'HEAD', headSignal, MAX_REDIRECTS)

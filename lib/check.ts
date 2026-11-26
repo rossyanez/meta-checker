@@ -8,22 +8,27 @@ export type Report = {
   redirects: { url: string; status: number }[]
   contentType: string | null
   speed: { ttfbMs: number; htmlBytes: number }
-  /** null when the response is not HTML */
-  page: PageFacts | null
+  /** null when the response is not HTML. The link list stays on the server; `links.found` counts it. */
+  page: Omit<PageFacts, 'links'> | null
   links: { found: number; checked: number; broken: LinkProbe[] } | null
 }
 
-export type CheckResult = { kind: 'report'; report: Report } | { kind: 'error'; reason: FetchFailure; message: string }
+export type CheckFailure = FetchFailure | 'unexpected'
 
-const MESSAGES: Record<FetchFailure, string> = {
+export type CheckResult = { kind: 'report'; report: Report } | { kind: 'error'; reason: CheckFailure; message: string }
+
+export const MESSAGES: Record<CheckFailure, string> = {
   'invalid-url': 'Enter a full web address, like https://example.com.',
   timeout: 'The page took longer than 10 seconds to respond. Check the address or try again later.',
   network: "We couldn't reach that address. Check the spelling, or the site may be down.",
   'too-many-redirects': 'The page redirected more than 10 times, so we stopped following it.',
+  unexpected: 'Something went wrong while reading that page. Try again, or try a different address.',
 }
 
 const LINK_CAP = 50
 const CONCURRENCY = 8
+/** With the 10 s page budget, this keeps a whole check under the 30 s the UI promises. */
+const LINK_PHASE_MS = 15_000
 
 export function normalizeUrl(input: string): string | null {
   const trimmed = input.trim()
@@ -32,7 +37,9 @@ export function normalizeUrl(input: string): string | null {
   const hasScheme = /^[a-z][a-z\d+.-]*:(?!\d)/i.test(trimmed)
   try {
     const url = new URL(hasScheme ? trimmed : `https://${trimmed}`)
-    return (url.protocol === 'http:' || url.protocol === 'https:') && url.hostname ? url.href : null
+    const isWeb = url.protocol === 'http:' || url.protocol === 'https:'
+    // A username or password is never part of a public page's address.
+    return isWeb && url.hostname && !url.username && !url.password ? url.href : null
   } catch {
     return null
   }
@@ -55,8 +62,8 @@ export async function checkUrl(
 
   const { page: response } = fetched
   const html = htmlOf(response)
-  const page = html === null ? null : parsePage(html, response.finalUrl)
-  const links = page && (await checkLinks(page.links, page.links.length, opts))
+  const facts = html === null ? null : parsePage(html, response.finalUrl)
+  const links = facts && (await checkLinks(facts.links, opts))
 
   return {
     kind: 'report',
@@ -67,13 +74,18 @@ export async function checkUrl(
       redirects: response.redirects,
       contentType: response.contentType,
       speed: { ttfbMs: response.ttfbMs, htmlBytes: response.body.byteLength },
-      page,
+      page: facts && withoutLinks(facts),
       links,
     },
   }
 }
 
-function failure(reason: FetchFailure): CheckResult {
+function withoutLinks({ links, ...rest }: PageFacts): Omit<PageFacts, 'links'> {
+  void links
+  return rest
+}
+
+function failure(reason: CheckFailure): CheckResult {
   return { kind: 'error', reason, message: MESSAGES[reason] }
 }
 
@@ -88,23 +100,35 @@ function htmlOf(response: FetchedPage): string | null {
 
 async function checkLinks(
   urls: string[],
-  found: number,
-  opts: { linkTimeoutMs?: number; linkCap?: number; concurrency?: number },
+  opts: { linkTimeoutMs?: number; linkPhaseMs?: number; linkCap?: number; concurrency?: number },
 ): Promise<NonNullable<Report['links']>> {
+  // One deadline for the whole phase: no new probes start after it, and in-flight ones are aborted.
+  const deadline = AbortSignal.timeout(opts.linkPhaseMs ?? LINK_PHASE_MS)
   const toCheck = urls.slice(0, opts.linkCap ?? LINK_CAP)
-  const probes = await mapPool(toCheck, opts.concurrency ?? CONCURRENCY, (url) =>
-    probeLink(url, { timeoutMs: opts.linkTimeoutMs }),
-  )
-  const broken = probes.filter((probe) => probe.status === null || probe.status >= 400)
-  return { found, checked: toCheck.length, broken }
+  const probes = await mapPool(toCheck, opts.concurrency ?? CONCURRENCY, deadline, async (url) => {
+    const probe = await probeLink(url, { timeoutMs: opts.linkTimeoutMs, signal: deadline })
+    // Cut off by the deadline rather than by the link itself, so it was not checked.
+    return deadline.aborted && probe.status === null ? null : probe
+  })
+  const finished = probes.filter((probe): probe is LinkProbe => probe !== null && probe !== undefined)
+  const broken = finished.filter((probe) => probe.status === null || probe.status >= 400)
+  return { found: urls.length, checked: finished.length, broken }
 }
 
-/** Runs `fn` over `items` with at most `limit` calls in flight. Results keep input order. */
-async function mapPool<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
-  const results: R[] = new Array(items.length)
+/**
+ * Runs `fn` over `items` with at most `limit` calls in flight, starting none after `stop` aborts.
+ * Results keep input order; items never started stay undefined.
+ */
+async function mapPool<T, R>(
+  items: T[],
+  limit: number,
+  stop: AbortSignal,
+  fn: (item: T) => Promise<R>,
+): Promise<(R | undefined)[]> {
+  const results: (R | undefined)[] = new Array(items.length)
   let next = 0
   async function worker() {
-    while (next < items.length) {
+    while (next < items.length && !stop.aborted) {
       const index = next++
       results[index] = await fn(items[index])
     }

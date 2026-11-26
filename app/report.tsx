@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react'
 import type { Report as CheckReport } from '../lib/check'
 import type { LinkProbe } from '../lib/fetcher'
-import type { PageFacts } from '../lib/parse-page'
 
 const OG_KEYS = ['title', 'description', 'image', 'url', 'type'] as const
 
@@ -85,7 +84,7 @@ export function Report({ report }: { report: CheckReport }): ReactNode {
   )
 }
 
-function PageSections({ page }: { page: PageFacts }) {
+function PageSections({ page }: { page: NonNullable<CheckReport['page']> }) {
   const hidden = page.headingCount - page.headings.length
   return (
     <>
