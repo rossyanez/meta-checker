@@ -32,6 +32,7 @@ describe('checkUrl', () => {
         found: 4,
         checked: 4,
         broken: [{ url: `${server.url}/status/404`, status: 404 }],
+        stoppedEarly: false,
       },
     })
     expect(report.speed.ttfbMs).toBeGreaterThanOrEqual(0)
@@ -54,7 +55,7 @@ describe('checkUrl', () => {
 
   test('checks at most 50 links, at most 8 at a time', async () => {
     const report = reportOf(await checkUrl(`${server.url}/many-links`))
-    expect(report.links).toEqual({ found: 60, checked: 50, broken: [] })
+    expect(report.links).toEqual({ found: 60, checked: 50, broken: [], stoppedEarly: false })
     expect(server.maxInFlight()).toBeLessThanOrEqual(8)
     expect(server.maxInFlight()).toBeGreaterThan(1)
   })
@@ -63,7 +64,7 @@ describe('checkUrl', () => {
     const own = await startFixtureServer()
     try {
       const report = reportOf(await checkUrl(`${own.url}/many-links`, { linkCap: 10, concurrency: 2 }))
-      expect(report.links).toMatchObject({ found: 60, checked: 10 })
+      expect(report.links).toMatchObject({ found: 60, checked: 10, stoppedEarly: false })
       expect(own.maxInFlight()).toBeLessThanOrEqual(2)
     } finally {
       await own.close()
@@ -83,6 +84,7 @@ describe('checkUrl', () => {
         { url: `${server.url}/status/500`, status: 500 },
         { url: `${server.url}/status/404`, status: 404 },
       ],
+      stoppedEarly: false,
     })
   })
 
@@ -95,6 +97,7 @@ describe('checkUrl', () => {
     expect(report.links?.found).toBe(60)
     expect(report.links?.checked).toBeLessThan(50)
     expect(report.links?.broken).toEqual([])
+    expect(report.links?.stoppedEarly).toBe(true)
   })
 
   test('the report does not carry the page link list', async () => {

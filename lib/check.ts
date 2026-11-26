@@ -10,7 +10,7 @@ export type Report = {
   speed: { ttfbMs: number; htmlBytes: number }
   /** null when the response is not HTML. The link list stays on the server; `links.found` counts it. */
   page: Omit<PageFacts, 'links'> | null
-  links: { found: number; checked: number; broken: LinkProbe[] } | null
+  links: { found: number; checked: number; broken: LinkProbe[]; stoppedEarly: boolean } | null
 }
 
 export type CheckFailure = FetchFailure | 'unexpected'
@@ -112,7 +112,7 @@ async function checkLinks(
   })
   const finished = probes.filter((probe): probe is LinkProbe => probe !== null && probe !== undefined)
   const broken = finished.filter((probe) => probe.status === null || probe.status >= 400)
-  return { found: urls.length, checked: finished.length, broken }
+  return { found: urls.length, checked: finished.length, broken, stoppedEarly: false }
 }
 
 /**
