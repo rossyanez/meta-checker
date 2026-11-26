@@ -21,7 +21,10 @@ export type Report = {
 
 export type CheckFailure = FetchFailure | 'unexpected'
 
-export type CheckResult = { kind: 'report'; report: Report } | { kind: 'error'; reason: CheckFailure; message: string }
+/** `rate-limited` comes from the server action, which words its message with the wait. */
+export type CheckResult =
+  | { kind: 'report'; report: Report }
+  | { kind: 'error'; reason: CheckFailure | 'rate-limited'; message: string }
 
 export const MESSAGES: Record<CheckFailure, string> = {
   'invalid-url': 'Enter a full web address, like https://example.com.',

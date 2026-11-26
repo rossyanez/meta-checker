@@ -17,6 +17,8 @@ WORKDIR /app
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=0.0.0.0
 COPY --from=build --chown=node:node /app/.next/standalone ./
 COPY --from=build --chown=node:node /app/public ./public
+COPY --from=build --chown=node:node /app/lib/peer-address.cjs ./lib/peer-address.cjs
 USER node
 EXPOSE 3000
-CMD ["node", "server.js"]
+# The preload gives the rate limit the real client address; see lib/peer-address.cjs.
+CMD ["node", "-r", "./lib/peer-address.cjs", "server.js"]

@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build && cp -r .next/static .next/standalone/.next/",
-    "start": "node .next/standalone/server.js",
+    "start": "node -r ./lib/peer-address.cjs .next/standalone/server.js",
     "test": "vitest run",
     "test:e2e": "playwright test",
     "lint": "next typegen && eslint . && tsc --noEmit"
