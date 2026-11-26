@@ -14,7 +14,7 @@ export type LinkProbe = { url: string; status: number | null; error?: 'timeout' 
 
 const PAGE_TIMEOUT_MS = 10_000
 const LINK_TIMEOUT_MS = 5_000
-/** HEAD gets this share of a probe's budget, so a hanging HEAD leaves time for the GET. */
+/** HEAD gets this share of a probe's budget, so a hanging HEAD fails fast and the GET can run. */
 const HEAD_SHARE = 2 / 5
 const MAX_REDIRECTS = 10
 const HEADERS = {
@@ -117,17 +117,19 @@ export async function probeLink(
   // The parser only hands over http(s) links, so this guards direct callers.
   if (!start) return { url, status: null, error: 'network' }
   const timeoutMs = opts.timeoutMs ?? LINK_TIMEOUT_MS
-  const budget = AbortSignal.timeout(timeoutMs)
-  const signal = opts.signal ? AbortSignal.any([budget, opts.signal]) : budget
-  const headSignal = AbortSignal.any([signal, AbortSignal.timeout(Math.round(timeoutMs * HEAD_SHARE))])
+  // Each attempt has its own timer; the caller's signal can still abort either one.
+  const within = (ms: number) => {
+    const timer = AbortSignal.timeout(ms)
+    return opts.signal ? AbortSignal.any([timer, opts.signal]) : timer
+  }
 
-  const head = await request(start, 'HEAD', headSignal, MAX_REDIRECTS)
+  const head = await request(start, 'HEAD', within(Math.round(timeoutMs * HEAD_SHARE)), MAX_REDIRECTS)
   if (head.ok && head.hops.response.status < 400) return { url, status: head.hops.response.status }
   if (!head.ok && head.reason === 'too-many-redirects') return { url, status: null, error: head.reason }
-  // Some servers refuse, hang on or mishandle HEAD, so they get one GET with the budget that is left.
-  if (signal.aborted) return { url, status: null, error: 'timeout' }
-
-  const get = await request(start, 'GET', signal, MAX_REDIRECTS)
+  if (opts.signal?.aborted) return { url, status: null, error: 'timeout' }
+  // Some servers refuse, hang on or mishandle HEAD. The GET gets a full budget of its own, so a slow
+  // but working link is not reported broken just because its HEAD was cut short.
+  const get = await request(start, 'GET', within(timeoutMs), MAX_REDIRECTS)
   if (!get.ok) return { url, status: null, error: get.reason }
   await get.hops.response.body?.cancel().catch(() => {})
   return { url, status: get.hops.response.status }
