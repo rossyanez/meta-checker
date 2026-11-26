@@ -47,6 +47,9 @@ export async function startFixtureServer(): Promise<FixtureServer> {
       return send(res, 200, html(`<h1>Link ${link[1]}</h1>`), htmlType)
     }
 
+    // Never answers, like a server that accepts the connection and then stalls.
+    if (/^\/hang\/\d+$/.test(path)) return
+
     switch (path) {
       case '/redirect/a':
         return send(res, 301, '', { Location: 'b' })
@@ -84,6 +87,13 @@ export async function startFixtureServer(): Promise<FixtureServer> {
           res,
           200,
           html(searchParams.getAll('href').map((href) => `<a href="${href}">link</a>`).join('\n')),
+          htmlType,
+        )
+      case '/hanging-links':
+        return send(
+          res,
+          200,
+          html(Array.from({ length: 60 }, (_, n) => `<a href="/hang/${n}">Hang ${n}</a>`).join('\n')),
           htmlType,
         )
       case '/many-links':

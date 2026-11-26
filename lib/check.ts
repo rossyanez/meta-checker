@@ -40,7 +40,13 @@ export function normalizeUrl(input: string): string | null {
 
 export async function checkUrl(
   input: string,
-  opts: { pageTimeoutMs?: number; linkTimeoutMs?: number; linkCap?: number; concurrency?: number } = {},
+  opts: {
+    pageTimeoutMs?: number
+    linkTimeoutMs?: number
+    linkPhaseMs?: number
+    linkCap?: number
+    concurrency?: number
+  } = {},
 ): Promise<CheckResult> {
   const url = normalizeUrl(input)
   if (!url) return failure('invalid-url')

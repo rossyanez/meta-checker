@@ -41,12 +41,6 @@ describe('checkUrl', () => {
       canonicals: ['https://example.com/complete'],
       robots: { index: true, follow: true },
       headingCount: 4,
-      links: [
-        `${server.url}/fixtures/headings.html`,
-        `${server.url}/status/404`,
-        `${server.url}/head-405`,
-        url,
-      ],
     })
   })
 
@@ -55,7 +49,7 @@ describe('checkUrl', () => {
     expect(report.finalUrl).toBe(`${server.url}/fixtures/complete.html`)
     expect(report.redirects.map((r) => r.status)).toEqual([301, 302])
     expect(report.page?.titles).toEqual(['Complete Example Page'])
-    expect(report.page?.links[0]).toBe(`${server.url}/fixtures/headings.html`)
+    expect(report.links?.broken).toEqual([{ url: `${server.url}/status/404`, status: 404 }])
   })
 
   test('checks at most 50 links, at most 8 at a time', async () => {
@@ -90,6 +84,23 @@ describe('checkUrl', () => {
         { url: `${server.url}/status/404`, status: 404 },
       ],
     })
+  })
+
+  test('the link phase stops at its deadline and counts unfinished links as not checked', async () => {
+    const started = Date.now()
+    const report = reportOf(
+      await checkUrl(`${server.url}/hanging-links`, { linkPhaseMs: 300, linkTimeoutMs: 2000 }),
+    )
+    expect(Date.now() - started).toBeLessThan(1000)
+    expect(report.links?.found).toBe(60)
+    expect(report.links?.checked).toBeLessThan(50)
+    expect(report.links?.broken).toEqual([])
+  })
+
+  test('the report does not carry the page link list', async () => {
+    const report = reportOf(await checkUrl(`${server.url}/many-links`, { linkCap: 1 }))
+    expect(report.page).not.toHaveProperty('links')
+    expect(report.links?.found).toBe(60)
   })
 
   test('a non-HTML response has no page and no links', async () => {
@@ -139,7 +150,7 @@ describe('checkUrl', () => {
     })
   })
 
-  test.each(['', '   ', 'ftp://example.com/file'])('%j is an invalid URL', async (input) => {
+  test.each(['', '   ', 'ftp://example.com/file', 'https://user:secret@example.com/'])('%j is an invalid URL', async (input) => {
     expect(await checkUrl(input)).toEqual({
       kind: 'error',
       reason: 'invalid-url',
@@ -159,7 +170,8 @@ describe('normalizeUrl', () => {
     expect(normalizeUrl(input)).toBe(expected)
   })
 
-  test.each(['', '   ', 'ftp://example.com', 'javascript:alert(1)', 'mailto:hello@example.com', 'https://'])(
+  test.each(['', '   ', 'ftp://example.com', 'javascript:alert(1)', 'mailto:hello@example.com', 'https://',
+    'https://user@example.com/', 'https://user:secret@example.com/', 'example.com@example.org'])(
     '%j is rejected',
     (input) => {
       expect(normalizeUrl(input)).toBeNull()
