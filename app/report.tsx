@@ -9,6 +9,7 @@ const PROBE_ERRORS: Record<NonNullable<LinkProbe['error']>, string> = {
   network: 'No response',
   timeout: 'Timed out',
   'too-many-redirects': 'Too many redirects',
+  blocked: 'Not public',
 }
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
@@ -72,6 +73,20 @@ export function Report({ report }: { report: CheckReport }): ReactNode {
                 </li>
               ))}
             </ul>
+          )}
+          {links.skipped.length > 0 && (
+            <>
+              <p className="state" id="report-skipped-links">
+                Skipped (not public)
+              </p>
+              <ul className="values" aria-labelledby="report-skipped-links">
+                {links.skipped.map((probe) => (
+                  <li key={probe.url}>
+                    <span className="value">{probe.url}</span>
+                  </li>
+                ))}
+              </ul>
+            </>
           )}
         </Section>
       )}

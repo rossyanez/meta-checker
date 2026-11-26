@@ -58,6 +58,26 @@ export async function startFixtureServer(): Promise<FixtureServer> {
     if (/^\/hang\/\d+$/.test(path)) return
 
     switch (path) {
+      case '/redirect-to':
+        // Redirects to whatever `location` says, so tests can aim a hop anywhere.
+        return send(res, 302, '', { Location: searchParams.get('location') ?? '/' })
+      case '/huge':
+        // More than 5 MB in chunks, with no Content-Length.
+        res.writeHead(200, htmlType)
+        for (let i = 0; i < 6 * 16; i++) res.write(Buffer.alloc(64 * 1024, 'a'))
+        return res.end()
+      case '/huge-length':
+        // Announces 100 MB, then sends nothing, so only the header can end the request early.
+        res.writeHead(200, { ...htmlType, 'Content-Length': String(100 * 1024 * 1024) })
+        return res.flushHeaders()
+      case '/trickle':
+        // Answers at once, then sends one byte every 100 ms and never finishes.
+        res.writeHead(200, htmlType)
+        while (!res.destroyed) {
+          res.write('a')
+          await sleep(100)
+        }
+        return
       case '/redirect/a':
         return send(res, 301, '', { Location: 'b' })
       case '/redirect/b':

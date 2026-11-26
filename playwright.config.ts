@@ -8,7 +8,8 @@ export default defineConfig({
   use: { baseURL: `http://localhost:${port}` },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: {
-    command: `npm run build && PORT=${port} npm start`,
+    // The fixture server listens on 127.0.0.1 at a random port, which only the test policy admits.
+    command: `npm run build && META_CHECKER_TEST_ALLOW_LOOPBACK=1 PORT=${port} npm start`,
     url: `http://localhost:${port}/tools/meta-checker`,
     reuseExistingServer: !process.env.CI,
     timeout: 180_000,

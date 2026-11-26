@@ -1,4 +1,5 @@
-import { fetchPage, probeLink, type FetchFailure, type FetchedPage, type LinkProbe } from './fetcher'
+import type { Policy } from './destination'
+import { fetchPage, MAX_PAGE_BYTES, probeLink, type FetchFailure, type FetchedPage, type LinkProbe } from './fetcher'
 import { LINK_PHASE_MS } from './limits'
 import { decodeHtml, parsePage, type PageFacts } from './parse-page'
 
@@ -11,19 +12,27 @@ export type Report = {
   speed: { ttfbMs: number; htmlBytes: number }
   /** null when the response is not HTML. The link list stays on the server; `links.found` counts it. */
   page: Omit<PageFacts, 'links'> | null
-  /** `stoppedEarly` is true when the phase deadline hit before every link up to the cap was probed. */
-  links: { found: number; checked: number; broken: LinkProbe[]; stoppedEarly: boolean } | null
+  /**
+   * `skipped` holds links we refused to check because they point at a private, local or non-web address.
+   * `stoppedEarly` is true when the phase deadline hit before every link up to the cap was probed.
+   */
+  links: { found: number; checked: number; broken: LinkProbe[]; skipped: LinkProbe[]; stoppedEarly: boolean } | null
 }
 
 export type CheckFailure = FetchFailure | 'unexpected'
 
-export type CheckResult = { kind: 'report'; report: Report } | { kind: 'error'; reason: CheckFailure; message: string }
+/** `rate-limited` comes from the server action, which words its message with the wait. */
+export type CheckResult =
+  | { kind: 'report'; report: Report }
+  | { kind: 'error'; reason: CheckFailure | 'rate-limited'; message: string }
 
 export const MESSAGES: Record<CheckFailure, string> = {
   'invalid-url': 'Enter a full web address, like https://example.com.',
   timeout: 'The page took longer than 10 seconds to respond. Check the address or try again later.',
   network: "We couldn't reach that address. Check the spelling, or the site may be down.",
   'too-many-redirects': 'The page redirected more than 10 times, so we stopped following it.',
+  blocked: 'We only check public web pages on ports 80 and 443. That address is private, local, or uses another port.',
+  'too-large': `The page is larger than ${MAX_PAGE_BYTES / 1024 / 1024} MB, so we stopped reading it.`,
   unexpected: 'Something went wrong while reading that page. Try again, or try a different address.',
 }
 
@@ -53,11 +62,12 @@ export async function checkUrl(
     linkPhaseMs?: number
     linkCap?: number
     concurrency?: number
+    policy?: Policy
   } = {},
 ): Promise<CheckResult> {
   const url = normalizeUrl(input)
   if (!url) return failure('invalid-url')
-  const fetched = await fetchPage(url, { timeoutMs: opts.pageTimeoutMs })
+  const fetched = await fetchPage(url, { timeoutMs: opts.pageTimeoutMs, policy: opts.policy })
   if (!fetched.ok) return failure(fetched.reason)
 
   const { page: response } = fetched
@@ -100,19 +110,27 @@ function htmlOf(response: FetchedPage): string | null {
 
 async function checkLinks(
   urls: string[],
-  opts: { linkTimeoutMs?: number; linkPhaseMs?: number; linkCap?: number; concurrency?: number },
+  opts: { linkTimeoutMs?: number; linkPhaseMs?: number; linkCap?: number; concurrency?: number; policy?: Policy },
 ): Promise<NonNullable<Report['links']>> {
   // One deadline for the whole phase: no new probes start after it, and in-flight ones are aborted.
   const deadline = AbortSignal.timeout(opts.linkPhaseMs ?? LINK_PHASE_MS)
   const toCheck = urls.slice(0, opts.linkCap ?? LINK_CAP)
   const probes = await mapPool(toCheck, opts.concurrency ?? CONCURRENCY, deadline, async (url) => {
-    const probe = await probeLink(url, { timeoutMs: opts.linkTimeoutMs, signal: deadline })
+    const probe = await probeLink(url, { timeoutMs: opts.linkTimeoutMs, signal: deadline, policy: opts.policy })
     // Cut off by the deadline rather than by the link itself, so it was not checked.
     return deadline.aborted && probe.status === null ? null : probe
   })
   const finished = probes.filter((probe): probe is LinkProbe => probe !== null && probe !== undefined)
-  const broken = finished.filter((probe) => probe.status === null || probe.status >= 400)
-  return { found: urls.length, checked: finished.length, broken, stoppedEarly: finished.length < toCheck.length }
+  // A refused link is our choice, not the site's fault, so it is skipped rather than broken.
+  const skipped = finished.filter((probe) => probe.error === 'blocked')
+  const broken = finished.filter((probe) => probe.error !== 'blocked' && (probe.status === null || probe.status >= 400))
+  return {
+    found: urls.length,
+    checked: finished.length,
+    broken,
+    skipped,
+    stoppedEarly: finished.length < toCheck.length,
+  }
 }
 
 /**

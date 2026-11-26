@@ -7,12 +7,12 @@ A free SEO tool. Enter a web address and the report shows:
 - **Canonical and robots.** Including whether search engines may index the page and follow its links.
 - **Headings outline.** H1 to H6 in page order, indented by level.
 - **Open Graph.** `og:title`, `og:description`, `og:image`, `og:url` and `og:type`.
-- **Broken links.** Up to 50 links on the page are checked, and any that fail are listed with their status.
+- **Broken links.** Up to 50 links on the page are checked, and any that fail are listed with their status. Links to private addresses are listed as skipped, not broken.
 - **Speed.** Time to first byte and HTML size.
 
 Each tag is marked Missing, Empty, or found more than once (the first one counts).
 
-Network safety (blocking private addresses, plus rate and size limits) lands in [#3](../../issues/3).
+The checker only fetches public web pages. See [Security](#security).
 
 **Live:** coming soon at rossyanez.com/tools/meta-checker
 
@@ -53,6 +53,25 @@ With Docker:
 docker build -t meta-checker .
 docker run --rm -p 3000:3000 meta-checker   # http://localhost:3000/tools/meta-checker
 ```
+
+## Security
+
+The checker fetches addresses that visitors type, so it guards what it connects to and how often it runs.
+
+- **Public addresses only.** Every request, redirect hop and link check must use `http` or `https`, port 80 or 443, no username or password, and a host that is not `localhost`. Every address the host resolves to must be global unicast (for IPv6, inside `2000::/3`): private, loopback, link-local, carrier-grade NAT, NAT64, multicast, reserved and cloud metadata addresses are refused. The check runs inside the connection's own DNS lookup, so the address checked is the address connected to (no DNS rebinding window). Refused pages show an error; refused links are listed as skipped.
+- **Size and time limits.** A page may be at most 5 MB. Connecting may take 3 seconds and the page 10 seconds in total, a slow trickle included. A link check can take up to 7 seconds: 2 for a HEAD request, then 5 for a GET if the HEAD fails. The whole link phase stops after 15 seconds.
+- **Rate limit.** Each visitor gets 10 checks a minute. The count is kept in memory for one server instance: a restart resets it, and several instances each count separately. IPv6 visitors are counted by their /64.
+- **Visitor address.** `npm start` and the Docker image start the server with `node -r ./lib/peer-address.cjs`. That preload stamps each request with the address of the socket it came in on. Next only fills `X-Forwarded-For` when the client sent none, so without it a visitor could hide their address by sending that header. Keep the preload if you start `server.js` another way; without it every visitor shares one bucket.
+- **Behind a proxy.** Set `TRUSTED_PROXY_HOPS` to the number of proxies that append to `X-Forwarded-For` in front of the app. The default, 0, trusts no forwarded header. Behind Coolify's Traefik, that is one proxy hop, so set `TRUSTED_PROXY_HOPS=1`. The server refuses to start if the value is not a whole number.
+- **Tests only.** `META_CHECKER_TEST_ALLOW_LOOPBACK=1` lets the end-to-end tests reach their local fixture server. Never set it in production.
+- **Lint.** Outside `lib/fetcher.ts` and `lib/destination.ts`, lint refuses `fetch`, `WebSocket` and `EventSource`, bare or on `globalThis`, `global`, `window` or `self`. It refuses `undici` and Node's network modules (`http`, `https`, `http2`, `net`, `tls`, `dgram`, `dns`) whether imported, required or loaded with `import()`. It also refuses module loading it can't check: template strings in `import()` or `require()`, `module.require()`, `getBuiltinModule()` and `createRequire()`. It can't see an aliased global (`const g = globalThis; g.fetch()`) or a module name built at run time in a plain variable, so review still matters.
+
+Known limits:
+
+- A blocked result tells a visitor that a name resolves to a private address in the server's DNS. No port scan is possible, because only ports 80 and 443 are ever tried.
+- One check can send up to about 100 requests (HEAD and GET for 50 links) to the hosts the page links to. The rate limit bounds this per visitor, but there is no cap per destination.
+- An `X-Forwarded-For` entry that carries a port puts that visitor in the shared bucket. Traefik doesn't add ports.
+- DNS lookups use the system resolver, which an abort doesn't cancel.
 
 ## License
 

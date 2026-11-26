@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { statSync } from 'node:fs'
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
+import { fixturePolicy, noDnsPolicy } from '../tests/policy'
 import { closedPortUrl, startFixtureServer, type FixtureServer } from '../tests/fixture-server'
 import { checkUrl, normalizeUrl, type CheckResult } from './check'
 
@@ -19,7 +20,7 @@ function reportOf(result: CheckResult) {
 describe('checkUrl', () => {
   test('builds a full report for a complete page, including its broken links', async () => {
     const url = `${server.url}/fixtures/complete.html`
-    const report = reportOf(await checkUrl(url))
+    const report = reportOf(await checkUrl(url, { policy: fixturePolicy }))
 
     expect(report).toMatchObject({
       requestedUrl: url,
@@ -46,7 +47,7 @@ describe('checkUrl', () => {
   })
 
   test('reports the redirect chain and parses the final page', async () => {
-    const report = reportOf(await checkUrl(`${server.url}/redirect/a`))
+    const report = reportOf(await checkUrl(`${server.url}/redirect/a`, { policy: fixturePolicy }))
     expect(report.finalUrl).toBe(`${server.url}/fixtures/complete.html`)
     expect(report.redirects.map((r) => r.status)).toEqual([301, 302])
     expect(report.page?.titles).toEqual(['Complete Example Page'])
@@ -54,8 +55,8 @@ describe('checkUrl', () => {
   })
 
   test('checks at most 50 links, at most 8 at a time', async () => {
-    const report = reportOf(await checkUrl(`${server.url}/many-links`))
-    expect(report.links).toEqual({ found: 60, checked: 50, broken: [], stoppedEarly: false })
+    const report = reportOf(await checkUrl(`${server.url}/many-links`, { policy: fixturePolicy }))
+    expect(report.links).toEqual({ found: 60, checked: 50, broken: [], skipped: [], stoppedEarly: false })
     expect(server.maxInFlight()).toBeLessThanOrEqual(8)
     expect(server.maxInFlight()).toBeGreaterThan(1)
   })
@@ -63,7 +64,7 @@ describe('checkUrl', () => {
   test('linkCap and concurrency are honoured', async () => {
     const own = await startFixtureServer()
     try {
-      const report = reportOf(await checkUrl(`${own.url}/many-links`, { linkCap: 10, concurrency: 2 }))
+      const report = reportOf(await checkUrl(`${own.url}/many-links`, { policy: fixturePolicy, linkCap: 10, concurrency: 2 }))
       expect(report.links).toMatchObject({ found: 60, checked: 10, stoppedEarly: false })
       expect(own.maxInFlight()).toBeLessThanOrEqual(2)
     } finally {
@@ -75,7 +76,7 @@ describe('checkUrl', () => {
     const closed = await closedPortUrl()
     const hrefs = [closed, '/status/500', '/fixtures/complete.html', '/status/404']
     const query = hrefs.map((h) => `href=${encodeURIComponent(h)}`).join('&')
-    const report = reportOf(await checkUrl(`${server.url}/link-list?${query}`))
+    const report = reportOf(await checkUrl(`${server.url}/link-list?${query}`, { policy: fixturePolicy }))
     expect(report.links).toEqual({
       found: 4,
       checked: 4,
@@ -84,6 +85,25 @@ describe('checkUrl', () => {
         { url: `${server.url}/status/500`, status: 500 },
         { url: `${server.url}/status/404`, status: 404 },
       ],
+      skipped: [],
+      stoppedEarly: false,
+    })
+  })
+
+  test('links to private addresses are skipped, not broken', async () => {
+    const hrefs = ['http://10.0.0.1/admin', '/status/404', 'http://169.254.169.254/latest/meta-data/', '/fixtures/complete.html']
+    const query = hrefs.map((h) => `href=${encodeURIComponent(h)}`).join('&')
+    const report = reportOf(
+      await checkUrl(`${server.url}/link-list?${query}`, { policy: fixturePolicy, linkTimeoutMs: 1_000 }),
+    )
+    expect(report.links).toEqual({
+      found: 4,
+      checked: 4,
+      broken: [{ url: `${server.url}/status/404`, status: 404 }],
+      skipped: [
+        { url: 'http://10.0.0.1/admin', status: null, error: 'blocked' },
+        { url: 'http://169.254.169.254/latest/meta-data/', status: null, error: 'blocked' },
+      ],
       stoppedEarly: false,
     })
   })
@@ -91,7 +111,7 @@ describe('checkUrl', () => {
   test('the link phase stops at its deadline and counts unfinished links as not checked', async () => {
     const started = Date.now()
     const report = reportOf(
-      await checkUrl(`${server.url}/hanging-links`, { linkPhaseMs: 300, linkTimeoutMs: 2000 }),
+      await checkUrl(`${server.url}/hanging-links`, { policy: fixturePolicy, linkPhaseMs: 300, linkTimeoutMs: 2000 }),
     )
     expect(Date.now() - started).toBeLessThan(1000)
     expect(report.links?.found).toBe(60)
@@ -101,13 +121,13 @@ describe('checkUrl', () => {
   })
 
   test('the report does not carry the page link list', async () => {
-    const report = reportOf(await checkUrl(`${server.url}/many-links`, { linkCap: 1 }))
+    const report = reportOf(await checkUrl(`${server.url}/many-links`, { policy: fixturePolicy, linkCap: 1 }))
     expect(report.page).not.toHaveProperty('links')
     expect(report.links?.found).toBe(60)
   })
 
   test('a non-HTML response has no page and no links', async () => {
-    const report = reportOf(await checkUrl(`${server.url}/file.pdf`))
+    const report = reportOf(await checkUrl(`${server.url}/file.pdf`, { policy: fixturePolicy }))
     expect(report).toMatchObject({
       status: 200,
       contentType: 'application/pdf',
@@ -118,19 +138,19 @@ describe('checkUrl', () => {
   })
 
   test('HTML with no Content-Type is still parsed', async () => {
-    const report = reportOf(await checkUrl(`${server.url}/no-type`))
+    const report = reportOf(await checkUrl(`${server.url}/no-type`, { policy: fixturePolicy }))
     expect(report.contentType).toBeNull()
     expect(report.page?.titles).toEqual(['Fixture'])
   })
 
   test('an error status with an HTML body is still a report', async () => {
-    const report = reportOf(await checkUrl(`${server.url}/status/500`))
+    const report = reportOf(await checkUrl(`${server.url}/status/500`, { policy: fixturePolicy }))
     expect(report.status).toBe(500)
     expect(report.page?.headings).toEqual([{ level: 1, text: 'Status 500' }])
   })
 
   test('a slow page is a timeout error with a friendly message', async () => {
-    expect(await checkUrl(`${server.url}/slow`, { pageTimeoutMs: 200 })).toEqual({
+    expect(await checkUrl(`${server.url}/slow`, { policy: fixturePolicy, pageTimeoutMs: 200 })).toEqual({
       kind: 'error',
       reason: 'timeout',
       message: 'The page took longer than 10 seconds to respond. Check the address or try again later.',
@@ -138,7 +158,7 @@ describe('checkUrl', () => {
   })
 
   test('an unreachable address is a network error with a friendly message', async () => {
-    expect(await checkUrl(await closedPortUrl())).toEqual({
+    expect(await checkUrl(await closedPortUrl(), { policy: fixturePolicy })).toEqual({
       kind: 'error',
       reason: 'network',
       message: "We couldn't reach that address. Check the spelling, or the site may be down.",
@@ -146,15 +166,32 @@ describe('checkUrl', () => {
   })
 
   test('a redirect loop is an error with a friendly message', async () => {
-    expect(await checkUrl(`${server.url}/loop`)).toEqual({
+    expect(await checkUrl(`${server.url}/loop`, { policy: fixturePolicy })).toEqual({
       kind: 'error',
       reason: 'too-many-redirects',
       message: 'The page redirected more than 10 times, so we stopped following it.',
     })
   })
 
+  test('a private address is a blocked error with a friendly message', async () => {
+    expect(await checkUrl('http://10.0.0.1/', { policy: noDnsPolicy(), pageTimeoutMs: 1_000 })).toEqual({
+      kind: 'error',
+      reason: 'blocked',
+      message:
+        'We only check public web pages on ports 80 and 443. That address is private, local, or uses another port.',
+    })
+  })
+
+  test('a page over the size cap is a too-large error with a friendly message', async () => {
+    expect(await checkUrl(`${server.url}/huge`, { policy: fixturePolicy })).toEqual({
+      kind: 'error',
+      reason: 'too-large',
+      message: 'The page is larger than 5 MB, so we stopped reading it.',
+    })
+  })
+
   test.each(['', '   ', 'ftp://example.com/file', 'https://user:secret@example.com/'])('%j is an invalid URL', async (input) => {
-    expect(await checkUrl(input)).toEqual({
+    expect(await checkUrl(input, { policy: fixturePolicy })).toEqual({
       kind: 'error',
       reason: 'invalid-url',
       message: 'Enter a full web address, like https://example.com.',
