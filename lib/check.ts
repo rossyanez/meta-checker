@@ -1,4 +1,5 @@
 import { fetchPage, probeLink, type FetchFailure, type FetchedPage, type LinkProbe } from './fetcher'
+import { LINK_PHASE_MS } from './limits'
 import { decodeHtml, parsePage, type PageFacts } from './parse-page'
 
 export type Report = {
@@ -10,6 +11,7 @@ export type Report = {
   speed: { ttfbMs: number; htmlBytes: number }
   /** null when the response is not HTML. The link list stays on the server; `links.found` counts it. */
   page: Omit<PageFacts, 'links'> | null
+  /** `stoppedEarly` is true when the phase deadline hit before every link up to the cap was probed. */
   links: { found: number; checked: number; broken: LinkProbe[]; stoppedEarly: boolean } | null
 }
 
@@ -27,8 +29,6 @@ export const MESSAGES: Record<CheckFailure, string> = {
 
 const LINK_CAP = 50
 const CONCURRENCY = 8
-/** With the 10 s page budget, this keeps a whole check under the 30 s the UI promises. */
-const LINK_PHASE_MS = 15_000
 
 export function normalizeUrl(input: string): string | null {
   const trimmed = input.trim()
@@ -112,7 +112,7 @@ async function checkLinks(
   })
   const finished = probes.filter((probe): probe is LinkProbe => probe !== null && probe !== undefined)
   const broken = finished.filter((probe) => probe.status === null || probe.status >= 400)
-  return { found: urls.length, checked: finished.length, broken, stoppedEarly: false }
+  return { found: urls.length, checked: finished.length, broken, stoppedEarly: finished.length < toCheck.length }
 }
 
 /**

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import type { Report as CheckReport } from '../lib/check'
 import type { LinkProbe } from '../lib/fetcher'
+import { LINK_PHASE_MS } from '../lib/limits'
 
 const OG_KEYS = ['title', 'description', 'image', 'url', 'type'] as const
 
@@ -55,6 +56,9 @@ export function Report({ report }: { report: CheckReport }): ReactNode {
       {links && (
         <Section title="Broken links">
           <p>{`Checked ${links.checked} of ${plural(links.found, 'link', 'links')}`}</p>
+          {links.stoppedEarly && (
+            <p className="state">{`Stopped after ${LINK_PHASE_MS / 1000} seconds, so some links were not checked.`}</p>
+          )}
           {links.broken.length === 0 ? (
             <p className="state">No broken links found</p>
           ) : (
