@@ -56,6 +56,13 @@ describe('fetchPage', () => {
     expect(text(result.page.body)).toContain('Complete Example Page')
   })
 
+  test('time to first byte includes the time spent on redirects', async () => {
+    const result = await fetchPage(`${server.url}/redirect/slow-a`)
+    if (!result.ok) throw new Error(`expected ok, got ${result.reason}`)
+    expect(result.page.redirects).toHaveLength(2)
+    expect(result.page.ttfbMs).toBeGreaterThanOrEqual(300)
+  })
+
   test('a redirect status with no Location is the final response', async () => {
     const result = await fetchPage(`${server.url}/redirect/none`)
     if (!result.ok) throw new Error(`expected ok, got ${result.reason}`)
@@ -125,6 +132,13 @@ describe('probeLink', () => {
   test('a server that refuses HEAD is retried with GET', async () => {
     const url = `${server.url}/head-405`
     expect(await probeLink(url)).toEqual({ url, status: 200 })
+  })
+
+  test('a HEAD that never answers falls back to GET within the budget', async () => {
+    const url = `${server.url}/head-hang`
+    const started = Date.now()
+    expect(await probeLink(url, { timeoutMs: 1000 })).toEqual({ url, status: 200 })
+    expect(Date.now() - started).toBeLessThan(1000)
   })
 
   test('a redirect is followed to its final status', async () => {

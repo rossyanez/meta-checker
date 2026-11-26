@@ -52,6 +52,16 @@ export async function startFixtureServer(): Promise<FixtureServer> {
         return send(res, 301, '', { Location: 'b' })
       case '/redirect/b':
         return send(res, 302, '', { Location: '../fixtures/complete.html' })
+      case '/redirect/slow-a':
+        return send(res, 301, '', { Location: '/redirect/slow-b' })
+      case '/redirect/slow-b':
+        // A slow hop in the middle of the chain, so time to first byte must include redirect time.
+        await sleep(300)
+        return send(res, 302, '', { Location: '/fixtures/complete.html' })
+      case '/head-hang':
+        // HEAD never gets an answer; GET works.
+        if (req.method === 'HEAD') return
+        return send(res, 200, html('<h1>GET works</h1>'), htmlType)
       case '/redirect/none':
         return send(res, 302, html('<h1>Redirect with no Location</h1>'), htmlType)
       case '/loop':
